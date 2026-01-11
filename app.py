@@ -35,7 +35,7 @@ if not st.session_state.auth:
                 st.error("Credenciais incorretas")
     st.stop()
 
-# ===== BUSCA DE DADOS FIREBASE =====
+# ===== FUNÇÃO FIREBASE =====
 def fb_get(path, default="--"):
     try:
         r = requests.get(f"{URL_FB}{path}.json", timeout=2)
@@ -43,9 +43,18 @@ def fb_get(path, default="--"):
     except:
         return default
 
+# ===== LEITURA DOS DADOS =====
 temperatura = fb_get("sensor/temperatura", "--")
 sensor_status = fb_get("sensor/status", "ERRO")
-led_status = fb_get("controle/led", "LED:OFF")
+led_raw = fb_get("controle/led", "LED:OFF")
+
+# ===== TRATAMENTO DO STATUS DO LED =====
+if led_raw == "LED:ON":
+    led_status = "LIGADO"
+    cor_led = "#00FF00"
+else:
+    led_status = "DESLIGADO"
+    cor_led = "#FF0000"
 
 # ===== MENU =====
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/4231/4231015.png", width=100)
@@ -76,8 +85,10 @@ if menu == "🕹️ Acionamento":
 
     with c2:
         st.subheader("Status Atual")
-        cor = "#00FF00" if led_status == "LED:ON" else "#FF0000"
-        st.markdown(f"<h1 style='color:{cor}; text-align:center;'>{led_status}</h1>", unsafe_allow_html=True)
+        st.markdown(
+            f"<h1 style='color:{cor_led}; text-align:center;'>{led_status}</h1>",
+            unsafe_allow_html=True
+        )
 
 elif menu == "📈 Monitoramento":
     st.header("Temperatura do Sistema")
