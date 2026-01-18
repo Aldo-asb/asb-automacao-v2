@@ -37,28 +37,30 @@ def fb_post(path, data):
     try: requests.post(f"{URL_FB}{path}.json", json=data, timeout=2)
     except: pass
 
-# --- FUNÇÃO DE E-MAIL ---
-def enviar_email_cliente(mensagem_corpo):
+# --- FUNÇÃO DE ENVIO DE E-MAIL REAL ---
+def enviar_email_relatorio(destinatario, assunto, corpo):
     try:
-        # Configurações de exemplo (requer um e-mail real e senha de app)
-        remetente = "seu_email@gmail.com"
-        destinatario = "cliente@email.com"
-        senha = "sua_senha_de_app" # Senha de app gerada no Google
+        # DADOS DO REMETENTE (ASB AUTOMAÇÃO)
+        remetente = "asbautomacao@gmail.com"
+        
+        # IMPORTANTE: Cole sua Senha de App de 16 dígitos entre as aspas abaixo
+        senha_app = "COLE_AQUI_SUA_SENHA_DE_APP" 
 
         msg = MIMEMultipart()
         msg['From'] = remetente
         msg['To'] = destinatario
-        msg['Subject'] = "RELATÓRIO OPERACIONAL - ASB AUTOMAÇÃO"
-        
-        msg.attach(MIMEText(mensagem_corpo, 'plain'))
-        
-        # server = smtplib.SMTP('smtp.gmail.com', 587)
-        # server.starttls()
-        # server.login(remetente, senha)
-        # server.send_message(msg)
-        # server.quit()
+        msg['Subject'] = assunto
+        msg.attach(MIMEText(corpo, 'plain'))
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remetente, senha_app)
+        server.send_message(msg)
+        server.quit()
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Erro ao enviar e-mail: {e}")
+        return False
 
 # --- SISTEMA DE LOGIN ---
 if 'autenticado' not in st.session_state:
@@ -73,13 +75,12 @@ if not st.session_state['autenticado']:
             if u == "admin" and s == "asb123":
                 st.session_state['autenticado'] = True
                 st.session_state['usuario'] = u
-                # Registra o acesso
                 log_acesso = {"usuario": u, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
                 fb_post("logs/acessos", log_acesso)
                 st.rerun()
             else: st.error("Erro")
 else:
-    # --- MENU ---
+    # --- MENU LATERAL ---
     st.sidebar.title("ASB INDUSTRIAL")
     aba = st.sidebar.radio("MENU", ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"])
     
@@ -121,24 +122,32 @@ else:
     elif aba == "📊 RELATÓRIOS":
         st.title("📊 RELATÓRIOS E LOGS")
         
-        tab1, tab2 = st.tabs(["Histórico de Operação", "Acessos de Usuários"])
+        tab1, tab2 = st.tabs(["Histórico Operacional", "Log de Acessos"])
         
         with tab1:
-            st.subheader("Eventos da Máquina")
+            st.subheader("Registros da Máquina")
             logs = fb_get("logs/operacao", {})
+            texto_relatorio = "RELATÓRIO DE OPERAÇÃO ASB\n\n"
+            
             if logs:
                 for id, info in reversed(list(logs.items())):
-                    st.write(f"🕒 {info['data']} - **{info['acao']}**")
+                    linha = f"🕒 {info['data']} - {info['acao']}"
+                    st.write(linha)
+                    texto_relatorio += linha + "\n"
             
-            if st.button("📧 ENVIAR RELATÓRIO POR E-MAIL"):
-                if enviar_email_cliente("Relatório ASB: Máquina operando conforme logs."):
-                    st.success("Relatório enviado com sucesso!")
+            st.divider()
+            st.subheader("📧 Enviar para Cliente")
+            email_cliente = st.text_input("Digite o e-mail do destinatário:")
+            if st.button("ENVIAR AGORA"):
+                if email_cliente:
+                    if enviar_email_relatorio(email_cliente, "Relatório Operacional ASB", texto_relatorio):
+                        st.success(f"Relatório enviado para {email_cliente}!")
                 else:
-                    st.info("Função de e-mail pronta. (Necessário configurar servidor SMTP)")
+                    st.warning("Por favor, digite um e-mail válido.")
 
         with tab2:
-            st.subheader("Log de Acessos")
+            st.subheader("Usuários que acessaram")
             acessos = fb_get("logs/acessos", {})
             if acessos:
                 for id, info in reversed(list(acessos.items())):
-                    st.write(f"👤 {info['usuario']} acessou em {info['data']}")
+                    st.write(f"👤 {info['usuario']} - {info['data']}")
