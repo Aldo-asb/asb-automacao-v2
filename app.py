@@ -11,13 +11,25 @@ st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# --- DESIGN INDUSTRIAL ASB ---
+# --- DESIGN INDUSTRIAL ASB (AJUSTE DE CONTRASTE) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3.5em; font-weight: bold; background-color: #1f2937; color: white; border: 1px solid #4a4a4a;}
     .stButton>button:hover { border-color: #00ff00; color: #00ff00; }
-    .report-card { background-color: #262730; padding: 20px; border-radius: 10px; border: 1px solid #4ade80; border-left: 10px solid #4ade80; margin-bottom: 15px; }
+    
+    /* Cartão de Relatório com Fundo Contrastante e Texto Branco */
+    .report-card { 
+        background-color: #2d3748; 
+        padding: 20px; 
+        border-radius: 10px; 
+        border: 1px solid #4ade80; 
+        border-left: 10px solid #4ade80; 
+        margin-bottom: 15px; 
+        color: #ffffff; /* Garante texto branco */
+    }
+    .report-card b { color: #ffffff; font-size: 18px; }
+    .report-card small { color: #cbd5e0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,7 +70,7 @@ def enviar_email_relatorio(destinatario, assunto, corpo):
         return True
     except: return False
 
-# --- LÓGICA DE LOGIN MULTI-USUÁRIO ---
+# --- LÓGICA DE LOGIN ---
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
@@ -68,39 +80,33 @@ if not st.session_state['autenticado']:
         u_input = st.text_input("Usuário")
         s_input = st.text_input("Senha", type="password")
         if st.form_submit_button("ACESSAR SISTEMA"):
-            # 1. Verifica se é o ADMIN MESTRE
             if u_input == "admin" and s_input == "asb123":
                 st.session_state['autenticado'] = True
                 st.session_state['usuario'] = "ADMIN MESTRE"
                 st.session_state['role'] = "admin"
                 st.rerun()
             else:
-                # 2. Verifica usuários cadastrados no Firebase
                 usuarios_db = fb_get("config/usuarios", {})
                 acesso_valido = False
-                for uid, dados in usuarios_db.items():
+                for uid, dados in (usuarios_db.items() if usuarios_db else []):
                     if dados['user'] == u_input and dados['pass'] == s_input:
                         st.session_state['autenticado'] = True
                         st.session_state['usuario'] = u_input
                         st.session_state['role'] = "cliente"
                         acesso_valido = True
                         break
-                
                 if acesso_valido:
                     fb_post("logs/acessos", {"usuario": u_input, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
                     st.rerun()
-                else:
-                    st.error("Usuário ou Senha inválidos.")
+                else: st.error("Usuário ou Senha inválidos.")
 else:
     # --- MENU LATERAL ---
     st.sidebar.markdown(f"<h2 style='color:#00ff00;'>Olá, {st.session_state['usuario']}</h2>", unsafe_allow_html=True)
-    
     opcoes_menu = ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"]
     if st.session_state['role'] == "admin":
         opcoes_menu.append("👤 GESTÃO DE ACESSOS")
         
     aba = st.sidebar.radio("MENU", opcoes_menu)
-    
     st.sidebar.divider()
     envio_auto = st.sidebar.toggle("Envio de E-mail Automático", value=False)
     email_destino = st.sidebar.text_input("E-mail para Alertas", value="asbautomacao@gmail.com")
@@ -137,53 +143,3 @@ else:
                 led = fb_get("controle/led", "OFF")
                 cor = "🟢" if "ON" in str(led).upper() else "🔴"
                 st.markdown(f"<div style='border:2px solid #374151;padding:20px;text-align:center;background-color:#1f2937;'><h2>{cor} {led}</h2></div>", unsafe_allow_html=True)
-            show_status()
-
-    elif aba == "📈 TELEMETRIA":
-        st.title("📈 TELEMETRIA")
-        @st.fragment(run_every=2)
-        def show_temp():
-            t = fb_get("sensor/temperatura")
-            s = fb_get("sensor/status", "ERRO")
-            if s == "OK": st.metric("TEMPERATURA ATUAL", f"{t} °C")
-            else: st.error("⚠️ SENSOR OFFLINE")
-        show_temp()
-
-    elif aba == "📊 RELATÓRIOS":
-        st.title("📊 RELATÓRIOS")
-        if st.button("🗑️ LIMPAR TUDO"):
-            fb_delete("logs/operacao")
-            st.rerun()
-            
-        logs = fb_get("logs/operacao", {})
-        if logs:
-            for id, info in reversed(list(logs.items())):
-                st.markdown(f"""<div class="report-card">
-                <small>{info['data']}</small><br>
-                <b>{info['acao']}</b> | 🌡️ {info.get('temp', '---')} °C
-                </div>""", unsafe_allow_html=True)
-        else: st.info("Sem registros.")
-
-    elif aba == "👤 GESTÃO DE ACESSOS":
-        st.title("👤 CADASTRO DE CLIENTES")
-        st.info("Aqui você cria os logins que enviará para seus clientes.")
-        
-        with st.form("Novo Usuário"):
-            new_user = st.text_input("Nome do Usuário (Cliente)")
-            new_pass = st.text_input("Senha do Cliente", type="password")
-            if st.form_submit_button("CADASTRAR CLIENTE"):
-                if new_user and new_pass:
-                    fb_post("config/usuarios", {"user": new_user, "pass": new_pass})
-                    st.success(f"Usuário {new_user} criado com sucesso!")
-                else: st.warning("Preencha todos os campos.")
-        
-        st.divider()
-        st.subheader("Usuários Ativos")
-        users = fb_get("config/usuarios", {})
-        if users:
-            for uid, d in users.items():
-                c1, c2 = st.columns([3, 1])
-                c1.write(f"👤 {d['user']}")
-                if c2.button("Excluir", key=uid):
-                    fb_delete(f"config/usuarios/{uid}")
-                    st.rerun()
