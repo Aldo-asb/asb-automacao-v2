@@ -32,15 +32,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE BANCO DE DADOS (COM TRATAMENTO DE ERRO) ---
+# --- FUNÇÕES DE BANCO DE DADOS ---
 def fb_get(path, default=None):
     try:
         r = requests.get(f"{URL_FB}{path}.json", timeout=3)
         if r.ok and r.json() is not None:
             return r.json()
         return default
-    except:
-        return default
+    except: return default
 
 def fb_set(path, value):
     try: requests.put(f"{URL_FB}{path}.json", json=value, timeout=3)
@@ -88,10 +87,8 @@ if not st.session_state['autenticado']:
                 st.session_state['role'] = "admin"
                 st.rerun()
             else:
-                # Busca lista de usuários ou retorna dicionário vazio se não existir
                 usuarios_db = fb_get("config/usuarios", {})
                 acesso_valido = False
-                
                 if isinstance(usuarios_db, dict):
                     for uid, dados in usuarios_db.items():
                         if dados.get('user') == u_input and dados.get('pass') == s_input:
@@ -100,12 +97,10 @@ if not st.session_state['autenticado']:
                             st.session_state['role'] = "cliente"
                             acesso_valido = True
                             break
-                
                 if acesso_valido:
                     fb_post("logs/acessos", {"usuario": u_input, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
                     st.rerun()
-                else:
-                    st.error("Usuário ou Senha inválidos.")
+                else: st.error("Usuário ou Senha inválidos.")
 else:
     # --- MENU LATERAL ---
     st.sidebar.markdown(f"<h2 style='color:#00ff00;'>Olá, {st.session_state['usuario']}</h2>", unsafe_allow_html=True)
@@ -129,20 +124,22 @@ else:
         with c1:
             if st.button("LIGAR MÁQUINA"):
                 t = fb_get("sensor/temperatura", "0")
+                u = fb_get("sensor/umidade", "0")
                 fb_set("controle/led", "ON")
                 dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                fb_post("logs/operacao", {"acao": f"LIGOU ({st.session_state['usuario']})", "temp": t, "data": dt})
+                fb_post("logs/operacao", {"acao": f"LIGOU ({st.session_state['usuario']})", "temp": t, "umid": u, "data": dt})
                 if envio_auto:
-                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA LIGADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C\nData: {dt}")
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA LIGADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C | Umid: {u}%\nData: {dt}")
                 st.toast("Comando enviado!")
             
             if st.button("DESLIGAR MÁQUINA"):
                 t = fb_get("sensor/temperatura", "0")
+                u = fb_get("sensor/umidade", "0")
                 fb_set("controle/led", "OFF")
                 dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                fb_post("logs/operacao", {"acao": f"DESLIGOU ({st.session_state['usuario']})", "temp": t, "data": dt})
+                fb_post("logs/operacao", {"acao": f"DESLIGOU ({st.session_state['usuario']})", "temp": t, "umid": u, "data": dt})
                 if envio_auto:
-                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA PARADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C\nData: {dt}")
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA PARADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C | Umid: {u}%\nData: {dt}")
                 st.toast("Comando enviado!")
         with c2:
             @st.fragment(run_every=3)
@@ -154,19 +151,24 @@ else:
 
     # --- TELA: TELEMETRIA ---
     elif aba == "📈 TELEMETRIA":
-        st.title("📈 TELEMETRIA")
+        st.title("📈 TELEMETRIA EM TEMPO REAL")
+        col1, col2 = st.columns(2)
         @st.fragment(run_every=2)
-        def show_temp():
+        def show_metrics():
             t = fb_get("sensor/temperatura", "0")
+            u = fb_get("sensor/umidade", "0")
             s = fb_get("sensor/status", "OFFLINE")
-            if s == "OK": st.metric("TEMPERATURA ATUAL", f"{t} °C")
-            else: st.warning(f"⚠️ STATUS: {s} (Temp: {t}°C)")
-        show_temp()
+            with col1:
+                st.metric("TEMPERATURA", f"{t} °C")
+            with col2:
+                st.metric("UMIDADE RELATIVA", f"{u} %")
+            if s != "OK": st.warning(f"⚠️ STATUS DO SENSOR: {s}")
+        show_metrics()
 
     # --- TELA: RELATÓRIOS ---
     elif aba == "📊 RELATÓRIOS":
-        st.title("📊 RELATÓRIOS")
-        if st.button("🗑️ LIMPAR TUDO"):
+        st.title("📊 RELATÓRIOS E HISTÓRICO")
+        if st.button("🗑️ LIMPAR HISTÓRICO"):
             fb_delete("logs/operacao")
             st.rerun()
             
@@ -174,16 +176,16 @@ else:
         if logs and isinstance(logs, dict):
             for id, info in reversed(list(logs.items())):
                 st.markdown(f"""<div class="report-card">
-                <small>DATA: {info.get('data', '---')}</small><br>
-                <b>EVENTO: {info.get('acao', '---')}</b><br>
-                <b>TEMPERATURA: {info.get('temp', '---')} °C</b>
+                <small>🕒 {info.get('data', '---')}</small><br>
+                <b>🔹 {info.get('acao', '---')}</b><br>
+                🌡️ Temp: {info.get('temp', '---')} °C | 💧 Umid: {info.get('umid', '---')} %
                 </div>""", unsafe_allow_html=True)
         else:
             st.info("Nenhum dado encontrado no servidor.")
 
     # --- TELA: GESTÃO DE ACESSOS ---
     elif aba == "👤 GESTÃO DE ACESSOS":
-        st.title("👤 CADASTRO DE CLIENTES")
+        st.title("👤 GESTÃO DE USUÁRIOS")
         with st.form("Novo Usuário"):
             new_user = st.text_input("Nome do Usuário")
             new_pass = st.text_input("Senha", type="password")
