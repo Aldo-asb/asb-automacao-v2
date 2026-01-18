@@ -41,8 +41,8 @@ def fb_post(path, data):
 def enviar_email_relatorio(destinatario, assunto, corpo):
     try:
         remetente = "asbautomacao@gmail.com"
-        # ATENÇÃO ALDO: Verifique se aqui estão as 16 letras da Senha de App do Google
-        senha_app = "COLE_AQUI_SUA_SENHA_DE_16_LETRAS" 
+        # SENHA DE APP GERADA PELO ALDO:
+        senha_app = "qmvm fnsn afok jejs" 
 
         msg = MIMEMultipart()
         msg['From'] = remetente
@@ -124,7 +124,7 @@ else:
         with tab1:
             st.subheader("Registros da Máquina")
             logs = fb_get("logs/operacao", {})
-            texto_relatorio = "RELATÓRIO DE OPERAÇÃO ASB\n\n"
+            texto_relatorio = "RELATÓRIO DE OPERAÇÃO ASB AUTOMAÇÃO\n\n"
             if logs:
                 for id, info in reversed(list(logs.items())):
                     linha = f"🕒 {info['data']} - {info['acao']}"
