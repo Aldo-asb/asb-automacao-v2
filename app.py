@@ -17,10 +17,7 @@ st.markdown("""
     .main { background-color: #0e1117; color: #ffffff; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3.5em; font-weight: bold; background-color: #1f2937; color: white; border: 1px solid #4a4a4a;}
     .stButton>button:hover { border-color: #00ff00; color: #00ff00; }
-    .report-card { background-color: #262730; padding: 20px; border-radius: 10px; border: 1px solid #4ade80; border-left: 10px solid #4ade80; margin-bottom: 15px; color: #ffffff; }
-    .fail-card { background-color: #3d2b2b; padding: 20px; border-radius: 10px; border: 1px solid #ff4b4b; border-left: 10px solid #ff4b4b; margin-bottom: 15px; color: #ffffff; }
-    .card-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; display: block; }
-    .card-text { font-size: 15px; font-family: 'Courier New', monospace; }
+    .report-card { background-color: #262730; padding: 20px; border-radius: 10px; border: 1px solid #4ade80; border-left: 10px solid #4ade80; margin-bottom: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -43,7 +40,7 @@ def fb_delete(path):
     try: requests.delete(f"{URL_FB}{path}.json", timeout=2)
     except: pass
 
-# --- FUNÇÃO DE ENVIO DE E-MAIL ---
+# --- FUNÇÃO DE E-MAIL ---
 def enviar_email_relatorio(destinatario, assunto, corpo):
     try:
         remetente = "asbautomacao@gmail.com"
@@ -61,31 +58,52 @@ def enviar_email_relatorio(destinatario, assunto, corpo):
         return True
     except: return False
 
-# --- LOGIN ---
+# --- LÓGICA DE LOGIN MULTI-USUÁRIO ---
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
 if not st.session_state['autenticado']:
     st.markdown("<h1 style='text-align:center;'>ASB AUTOMAÇÃO</h1>", unsafe_allow_html=True)
     with st.form("Login"):
-        u = st.text_input("Usuário")
-        s = st.text_input("Senha", type="password")
-        if st.form_submit_button("ACESSAR"):
-            if u == "admin" and s == "asb123":
+        u_input = st.text_input("Usuário")
+        s_input = st.text_input("Senha", type="password")
+        if st.form_submit_button("ACESSAR SISTEMA"):
+            # 1. Verifica se é o ADMIN MESTRE
+            if u_input == "admin" and s_input == "asb123":
                 st.session_state['autenticado'] = True
-                st.session_state['usuario'] = u
-                fb_post("logs/acessos", {"usuario": u, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
+                st.session_state['usuario'] = "ADMIN MESTRE"
+                st.session_state['role'] = "admin"
                 st.rerun()
-            else: st.error("Erro")
+            else:
+                # 2. Verifica usuários cadastrados no Firebase
+                usuarios_db = fb_get("config/usuarios", {})
+                acesso_valido = False
+                for uid, dados in usuarios_db.items():
+                    if dados['user'] == u_input and dados['pass'] == s_input:
+                        st.session_state['autenticado'] = True
+                        st.session_state['usuario'] = u_input
+                        st.session_state['role'] = "cliente"
+                        acesso_valido = True
+                        break
+                
+                if acesso_valido:
+                    fb_post("logs/acessos", {"usuario": u_input, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
+                    st.rerun()
+                else:
+                    st.error("Usuário ou Senha inválidos.")
 else:
     # --- MENU LATERAL ---
-    st.sidebar.markdown("<h2 style='color:#00ff00;'>ASB V2</h2>", unsafe_allow_html=True)
-    aba = st.sidebar.radio("MENU", ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"])
+    st.sidebar.markdown(f"<h2 style='color:#00ff00;'>Olá, {st.session_state['usuario']}</h2>", unsafe_allow_html=True)
+    
+    opcoes_menu = ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"]
+    if st.session_state['role'] == "admin":
+        opcoes_menu.append("👤 GESTÃO DE ACESSOS")
+        
+    aba = st.sidebar.radio("MENU", opcoes_menu)
     
     st.sidebar.divider()
-    st.sidebar.subheader("⚙️ Configurações")
     envio_auto = st.sidebar.toggle("Envio de E-mail Automático", value=False)
-    email_destino = st.sidebar.text_input("E-mail para Auto-Envio", value="asbautomacao@gmail.com")
+    email_destino = st.sidebar.text_input("E-mail para Alertas", value="asbautomacao@gmail.com")
     
     if st.sidebar.button("SAIR"):
         st.session_state['autenticado'] = False
@@ -98,23 +116,21 @@ else:
         with c1:
             if st.button("LIGAR MÁQUINA"):
                 t = fb_get("sensor/temperatura", "---")
-                st.toast("Ligando...")
                 fb_set("controle/led", "ON")
-                data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                fb_post("logs/operacao", {"acao": "LIGOU", "temp": t, "data": data_hora})
+                dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                fb_post("logs/operacao", {"acao": f"LIGOU ({st.session_state['usuario']})", "temp": t, "data": dt})
                 if envio_auto:
-                    corpo = f"ALERTA ASB: Máquina LIGADA\nData: {data_hora}\nTemp: {t}°C"
-                    enviar_email_relatorio(email_destino, "NOTIFICAÇÃO AUTOMÁTICA - LIGOU", corpo)
-
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA LIGADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C\nData: {dt}")
+                st.toast("Comando enviado!")
+            
             if st.button("DESLIGAR MÁQUINA"):
                 t = fb_get("sensor/temperatura", "---")
-                st.toast("Desligando...")
                 fb_set("controle/led", "OFF")
-                data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                fb_post("logs/operacao", {"acao": "DESLIGOU", "temp": t, "data": data_hora})
+                dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                fb_post("logs/operacao", {"acao": f"DESLIGOU ({st.session_state['usuario']})", "temp": t, "data": dt})
                 if envio_auto:
-                    corpo = f"ALERTA ASB: Máquina DESLIGADA\nData: {data_hora}\nTemp: {t}°C"
-                    enviar_email_relatorio(email_destino, "NOTIFICAÇÃO AUTOMÁTICA - DESLIGOU", corpo)
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA PARADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C\nData: {dt}")
+                st.toast("Comando enviado!")
         with c2:
             @st.fragment(run_every=3)
             def show_status():
@@ -135,38 +151,39 @@ else:
 
     elif aba == "📊 RELATÓRIOS":
         st.title("📊 RELATÓRIOS")
+        if st.button("🗑️ LIMPAR TUDO"):
+            fb_delete("logs/operacao")
+            st.rerun()
+            
+        logs = fb_get("logs/operacao", {})
+        if logs:
+            for id, info in reversed(list(logs.items())):
+                st.markdown(f"""<div class="report-card">
+                <small>{info['data']}</small><br>
+                <b>{info['acao']}</b> | 🌡️ {info.get('temp', '---')} °C
+                </div>""", unsafe_allow_html=True)
+        else: st.info("Sem registros.")
+
+    elif aba == "👤 GESTÃO DE ACESSOS":
+        st.title("👤 CADASTRO DE CLIENTES")
+        st.info("Aqui você cria os logins que enviará para seus clientes.")
         
-        col_rel, col_btn = st.columns([4, 1])
-        with col_btn:
-            if st.button("🗑️ APAGAR DADOS", type="secondary"):
-                fb_delete("logs/operacao")
-                st.success("Histórico limpo!")
-                time.sleep(1)
-                st.rerun()
-
-        tab1, tab2 = st.tabs(["📌 Histórico", "🔒 Acessos"])
-        with tab1:
-            logs = fb_get("logs/operacao", {})
-            texto_email = "RELATÓRIO ASB\n" + "="*20 + "\n"
-            if logs:
-                for id, info in reversed(list(logs.items())):
-                    val_t = info.get('temp', '---')
-                    st.markdown(f"""<div class="report-card">
-                    <span class="card-title">✅ {info['acao']}</span>
-                    <span class="card-text">🕒 {info['data']} | 🌡️ {val_t} °C</span>
-                    </div>""", unsafe_allow_html=True)
-                    texto_email += f"{info['data']} - {info['acao']} - {val_t}C\n"
-                
-                st.divider()
-                dest = st.text_input("Enviar este histórico manualmente para:", value=email_destino)
-                if st.button("ENVIAR MANUALMENTE"):
-                    if enviar_email_relatorio(dest, "Relatório Manual ASB", texto_email):
-                        st.success("E-mail enviado!")
-            else:
-                st.info("Nenhum dado registrado.")
-
-        with tab2:
-            acessos = fb_get("logs/acessos", {})
-            if acessos:
-                for id, info in reversed(list(acessos.items())):
-                    st.info(f"👤 {info['usuario']} | {info['data']}")
+        with st.form("Novo Usuário"):
+            new_user = st.text_input("Nome do Usuário (Cliente)")
+            new_pass = st.text_input("Senha do Cliente", type="password")
+            if st.form_submit_button("CADASTRAR CLIENTE"):
+                if new_user and new_pass:
+                    fb_post("config/usuarios", {"user": new_user, "pass": new_pass})
+                    st.success(f"Usuário {new_user} criado com sucesso!")
+                else: st.warning("Preencha todos os campos.")
+        
+        st.divider()
+        st.subheader("Usuários Ativos")
+        users = fb_get("config/usuarios", {})
+        if users:
+            for uid, d in users.items():
+                c1, c2 = st.columns([3, 1])
+                c1.write(f"👤 {d['user']}")
+                if c2.button("Excluir", key=uid):
+                    fb_delete(f"config/usuarios/{uid}")
+                    st.rerun()
