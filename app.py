@@ -1,111 +1,89 @@
-# ASB Automação V2 – ESP32 WiFi
 import streamlit as st
 import requests
 import time
+import pandas as pd
 from datetime import datetime
 
-# ===== CONFIGURAÇÃO =====
-st.set_page_config(page_title="ASB Automação V2", layout="wide")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="ASB AUTOMACÃO V2", layout="wide")
+
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# ===== ESTILO DARK =====
+# --- ESTILO PARA MELHORAR O VISUAL ---
 st.markdown("""
-<style>
-.stApp { background-color: #0E1117; color: white; }
-[data-testid="stSidebar"] { background-color: #1A1C24; }
-div.stButton > button { width: 100%; border-radius: 10px; height: 3em; }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; }
+    [data-testid="stMetricValue"] { font-size: 40px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# ===== LOGIN =====
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-
-if not st.session_state.auth:
-    st.markdown("<h2 style='text-align:center;'>🏗️ ASB AUTOMAÇÃO - ACESSO</h2>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        u = st.text_input("Usuário")
-        p = st.text_input("Senha", type="password")
-        if st.button("ACESSAR PAINEL"):
-            if u == "ASB" and p == "123":
-                st.session_state.auth = True
-                st.rerun()
-            else:
-                st.error("Credenciais incorretas")
-    st.stop()
-
-# ===== FUNÇÃO FIREBASE =====
-def fb_get(path, default="--"):
+# --- FUNÇÕES DE COMUNICAÇÃO FIREBASE ---
+def fb_get(path, default=None):
     try:
         r = requests.get(f"{URL_FB}{path}.json", timeout=2)
-        return r.json() if r.ok and r.json() is not None else default
+        return r.json() if r.ok else default
     except:
         return default
 
-# ===== LEITURA DOS DADOS =====
-temperatura = fb_get("sensor/temperatura", "--")
-sensor_status = fb_get("sensor/status", "ERRO")
-led_raw = fb_get("controle/led", "LED:OFF")
+def fb_set(path, value):
+    try:
+        requests.put(f"{URL_FB}{path}.json", json=value, timeout=2)
+    except:
+        pass
 
-# ===== TRATAMENTO DO STATUS DO LED =====
-if led_raw == "LED:ON":
-    led_status = "LIGADO"
-    cor_led = "#00FF00"
-else:
-    led_status = "DESLIGADO"
-    cor_led = "#FF0000"
+# --- MENU LATERAL (ORGANIZAÇÃO DAS TELAS) ---
+st.sidebar.title("MENU DE CONTROLE")
+aba_selecionada = st.sidebar.radio("Selecione a Tela:", ["🕹️ Controle de Dispositivos", "📈 Monitoramento de Temperatura"])
 
-# ===== MENU =====
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/4231/4231015.png", width=100)
-st.sidebar.title("ASB V2.0")
-menu = st.sidebar.radio("Ir para:", ["🕹️ Acionamento", "📈 Monitoramento", "📋 Logs", "🚪 Sair"])
+# --- LÓGICA DE SEPARAÇÃO DE TELAS ---
 
-if menu == "🚪 Sair":
-    st.session_state.auth = False
-    st.rerun()
-
-# ===== TELAS =====
-if menu == "🕹️ Acionamento":
-    st.header("Controle de Equipamentos")
-    st.write("---")
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.subheader("Controle LED")
-
-        if st.button("🟢 LIGAR", type="primary"):
-            requests.put(f"{URL_FB}controle/led.json", json="LED:ON")
+# TELA 1: CONTROLE DE DISPOSITIVOS
+if aba_selecionada == "🕹️ Controle de Dispositivos":
+    st.header("🕹️ Controle de Dispositivos")
+    st.divider()
+    
+    led = fb_get("controle/led", "OFF")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Comandos")
+        if st.button("🟢 LIGAR LED"):
+            fb_set("controle/led", "ON")
             st.rerun()
 
-        if st.button("🔴 DESLIGAR"):
-            requests.put(f"{URL_FB}controle/led.json", json="LED:OFF")
+        if st.button("🔴 DESLIGAR LED"):
+            fb_set("controle/led", "OFF")
             st.rerun()
 
-    with c2:
+    with col2:
         st.subheader("Status Atual")
-        st.markdown(
-            f"<h1 style='color:{cor_led}; text-align:center;'>{led_status}</h1>",
-            unsafe_allow_html=True
-        )
+        # Garante que tratamos o valor como string para evitar erro
+        led_str = str(led)
+        cor = "🟢" if "ON" in led_str.upper() else "🔴"
+        st.markdown(f"<div style='text-align: center; border: 2px solid grey; padding: 20px; border-radius: 10px;'>"
+                    f"<h1>{cor} {led_str}</h1>"
+                    f"</div>", unsafe_allow_html=True)
 
-elif menu == "📈 Monitoramento":
-    st.header("Temperatura do Sistema")
+# TELA 2: MONITORAMENTO DE TEMPERATURA
+elif aba_selecionada == "📈 Monitoramento de Temperatura":
+    st.header("📈 Monitoramento de Temperatura")
+    st.divider()
+    
+    temperatura = fb_get("sensor/temperatura")
+    status = fb_get("sensor/status", "ERRO")
+    
+    col_metrica, col_info = st.columns([1, 2])
+    
+    with col_metrica:
+        if status == "OK" and isinstance(temperatura, (int, float)):
+            st.metric("Temperatura Atual", f"{temperatura:.2f} °C")
+        else:
+            st.error("Falha na leitura do sensor")
+            
+    with col_info:
+        st.info("Os dados são atualizados em tempo real vindos do coletor local.")
 
-    if sensor_status == "OK":
-        st.metric("Temperatura Atual", f"{temperatura} °C")
-    else:
-        st.error("Falha na leitura do sensor")
-
-elif menu == "📋 Logs":
-    st.header("Eventos do Sistema")
-    st.table([{
-        "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-        "Evento": "Sistema Online",
-        "Status": sensor_status
-    }])
-
-# ===== ATUALIZAÇÃO AUTOMÁTICA =====
-time.sleep(3)
+# --- ATUALIZAÇÃO AUTOMÁTICA ---
+time.sleep(2)
 st.rerun()
