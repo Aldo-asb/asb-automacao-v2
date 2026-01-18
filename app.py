@@ -1,140 +1,144 @@
 import streamlit as st
 import requests
 import time
+from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# --- CONFIGURAÇÃO DA PÁGINA (ESTILO INDUSTRIAL) ---
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# --- DESIGN PERSONALIZADO ASB ---
+# --- DESIGN INDUSTRIAL ASB ---
 st.markdown("""
     <style>
-    /* Fundo e Texto Geral */
     .main { background-color: #0e1117; color: #ffffff; }
-    
-    /* Botões Industriais */
-    .stButton>button { 
-        width: 100%; 
-        border-radius: 5px; 
-        height: 3.5em; 
-        font-weight: bold; 
-        text-transform: uppercase;
-        border: 1px solid #4a4a4a;
-        background-color: #1f2937;
-        color: white;
-    }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3.5em; font-weight: bold; background-color: #1f2937; color: white; border: 1px solid #4a4a4a;}
     .stButton>button:hover { border-color: #00ff00; color: #00ff00; }
-
-    /* Estilo das Métricas */
-    [data-testid="stMetricValue"] { color: #00ff00; font-family: 'Courier New', monospace; font-size: 50px !important; }
-    [data-testid="stMetricLabel"] { color: #9ca3af; text-transform: uppercase; letter-spacing: 2px; }
-
-    /* Títulos */
-    h1, h2, h3 { color: #f3f4f6; font-family: 'Segoe UI', sans-serif; border-bottom: 2px solid #374151; padding-bottom: 10px; }
-    
-    /* Sidebar */
+    [data-testid="stMetricValue"] { color: #00ff00; font-family: 'Courier New', monospace; }
     [data-testid="stSidebar"] { background-color: #111827; border-right: 2px solid #374151; }
     </style>
     """, unsafe_allow_html=True)
+
+# --- FUNÇÕES DE BANCO DE DADOS ---
+def fb_get(path, default=None):
+    try:
+        r = requests.get(f"{URL_FB}{path}.json", timeout=2)
+        return r.json() if r.ok else default
+    except: return default
+
+def fb_set(path, value):
+    try: requests.put(f"{URL_FB}{path}.json", json=value, timeout=2)
+    except: pass
+
+def fb_post(path, data):
+    try: requests.post(f"{URL_FB}{path}.json", json=data, timeout=2)
+    except: pass
+
+# --- FUNÇÃO DE E-MAIL ---
+def enviar_email_cliente(mensagem_corpo):
+    try:
+        # Configurações de exemplo (requer um e-mail real e senha de app)
+        remetente = "seu_email@gmail.com"
+        destinatario = "cliente@email.com"
+        senha = "sua_senha_de_app" # Senha de app gerada no Google
+
+        msg = MIMEMultipart()
+        msg['From'] = remetente
+        msg['To'] = destinatario
+        msg['Subject'] = "RELATÓRIO OPERACIONAL - ASB AUTOMAÇÃO"
+        
+        msg.attach(MIMEText(mensagem_corpo, 'plain'))
+        
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()
+        # server.login(remetente, senha)
+        # server.send_message(msg)
+        # server.quit()
+        return True
+    except: return False
 
 # --- SISTEMA DE LOGIN ---
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
-def tela_login():
-    st.markdown("<h1 style='text-align:center;'>ASB AUTOMAÇÃO INDUSTRIAL</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center;'>Acesso Restrito ao Sistema</h3>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        with st.form("Login"):
-            usuario = st.text_input("Usuário")
-            senha = st.text_input("Senha", type="password")
-            entrar = st.form_submit_button("ACESSAR SISTEMA")
-            
-            if entrar:
-                # Altere aqui para o seu usuário e senha de preferência
-                if usuario == "asb" and senha == "asb123":
-                    st.session_state['autenticado'] = True
-                    st.success("Acesso Autorizado!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Credenciais Inválidas")
-
-# --- FUNÇÕES FIREBASE ---
-def fb_get(path, default=None):
-    try:
-        r = requests.get(f"{URL_FB}{path}.json", timeout=2)
-        return r.json() if r.ok else default
-    except:
-        return default
-
-def fb_set(path, value):
-    try:
-        requests.put(f"{URL_FB}{path}.json", json=value, timeout=2)
-    except:
-        pass
-
-# --- CONTEÚDO PRINCIPAL ---
 if not st.session_state['autenticado']:
-    tela_login()
+    st.markdown("<h1 style='text-align:center;'>ASB AUTOMAÇÃO</h1>", unsafe_allow_html=True)
+    with st.form("Login"):
+        u = st.text_input("Usuário")
+        s = st.text_input("Senha", type="password")
+        if st.form_submit_button("ACESSAR"):
+            if u == "admin" and s == "asb123":
+                st.session_state['autenticado'] = True
+                st.session_state['usuario'] = u
+                # Registra o acesso
+                log_acesso = {"usuario": u, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
+                fb_post("logs/acessos", log_acesso)
+                st.rerun()
+            else: st.error("Erro")
 else:
-    # Cabeçalho de Navegação
-    st.sidebar.markdown("<h2 style='text-align:center; color:#00ff00;'>ASB V2</h2>", unsafe_allow_html=True)
-    st.sidebar.divider()
-    aba = st.sidebar.radio("NAVEGAR POR:", ["🕹️ PAINEL DE COMANDO", "📈 MONITORAMENTO TÉRMICO"])
+    # --- MENU ---
+    st.sidebar.title("ASB INDUSTRIAL")
+    aba = st.sidebar.radio("MENU", ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"])
     
-    if st.sidebar.button("SAIR DO SISTEMA"):
+    if st.sidebar.button("SAIR"):
         st.session_state['autenticado'] = False
         st.rerun()
 
-    # --- FRAGMENTOS DE ATUALIZAÇÃO ---
-    @st.fragment(run_every=3)
-    def fragmento_status():
-        led = fb_get("controle/led", "OFF")
-        led_str = str(led).upper()
-        cor_led = "🟢" if "ON" in led_str else "🔴"
-        st.markdown(f"""
-            <div style='text-align: center; border: 2px solid #374151; padding: 30px; border-radius: 10px; background-color: #1f2937;'>
-                <p style='color: #9ca3af; margin-bottom: 5px; text-transform: uppercase;'>Status do Equipamento</p>
-                <h1 style='margin:0; font-family: monospace;'>{cor_led} {led_str}</h1>
-            </div>
-        """, unsafe_allow_html=True)
-
-    @st.fragment(run_every=2)
-    def fragmento_temperatura():
-        temp = fb_get("sensor/temperatura")
-        status = fb_get("sensor/status", "ERRO")
-        if status == "OK" and isinstance(temp, (int, float)):
-            st.metric("LEITURA ATUAL DHT11", f"{temp:.2f} °C")
-        else:
-            st.error("⚠️ HARDWARE OFFLINE")
-
     # --- TELAS ---
-    if aba == "🕹️ PAINEL DE COMANDO":
+    if aba == "🕹️ COMANDO":
         st.title("🕹️ CENTRO DE COMANDO")
-        st.write("Gerenciamento de Atuadores em Tempo Real")
-        
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("Controle Manual")
             if st.button("LIGAR MÁQUINA"):
                 fb_set("controle/led", "ON")
-                st.toast("Comando ON enviado")
+                fb_post("logs/operacao", {"acao": "LIGOU", "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
+                st.toast("Máquina Iniciada")
             if st.button("DESLIGAR MÁQUINA"):
                 fb_set("controle/led", "OFF")
-                st.toast("Comando OFF enviado")
+                fb_post("logs/operacao", {"acao": "DESLIGOU", "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
+                st.toast("Máquina Parada")
         with c2:
-            fragmento_status()
+            @st.fragment(run_every=3)
+            def show_status():
+                led = fb_get("controle/led", "OFF")
+                cor = "🟢" if "ON" in str(led).upper() else "🔴"
+                st.markdown(f"<div style='border:2px solid #374151;padding:20px;text-align:center;'><h2>{cor} {led}</h2></div>", unsafe_allow_html=True)
+            show_status()
 
-    elif aba == "📈 MONITORAMENTO TÉRMICO":
-        st.title("📈 TELEMETRIA DE TEMPERATURA")
-        st.write("Dados transmitidos via Protocolo Firebase")
+    elif aba == "📈 TELEMETRIA":
+        st.title("📈 MONITORAMENTO REALTIME")
+        @st.fragment(run_every=2)
+        def show_temp():
+            t = fb_get("sensor/temperatura")
+            s = fb_get("sensor/status", "ERRO")
+            if s == "OK": st.metric("TEMPERATURA", f"{t} °C")
+            else: st.error("SENSOR OFFLINE")
+        show_temp()
+
+    elif aba == "📊 RELATÓRIOS":
+        st.title("📊 RELATÓRIOS E LOGS")
         
-        ca, cb = st.columns([1, 2])
-        with ca:
-            fragmento_temperatura()
-        with cb:
-            st.info("Painel de Telemetria Industrial - ASB Automação. Verifique a estabilidade do coletor local se a métrica não variar.")
+        tab1, tab2 = st.tabs(["Histórico de Operação", "Acessos de Usuários"])
+        
+        with tab1:
+            st.subheader("Eventos da Máquina")
+            logs = fb_get("logs/operacao", {})
+            if logs:
+                for id, info in reversed(list(logs.items())):
+                    st.write(f"🕒 {info['data']} - **{info['acao']}**")
+            
+            if st.button("📧 ENVIAR RELATÓRIO POR E-MAIL"):
+                if enviar_email_cliente("Relatório ASB: Máquina operando conforme logs."):
+                    st.success("Relatório enviado com sucesso!")
+                else:
+                    st.info("Função de e-mail pronta. (Necessário configurar servidor SMTP)")
+
+        with tab2:
+            st.subheader("Log de Acessos")
+            acessos = fb_get("logs/acessos", {})
+            if acessos:
+                for id, info in reversed(list(acessos.items())):
+                    st.write(f"👤 {info['usuario']} acessou em {info['data']}")
