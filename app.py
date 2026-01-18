@@ -55,7 +55,7 @@ def tela_login():
             
             if entrar:
                 # Altere aqui para o seu usuário e senha de preferência
-                if usuario == "admin" and senha == "asb123":
+                if usuario == "asb" and senha == "asb123":
                     st.session_state['autenticado'] = True
                     st.success("Acesso Autorizado!")
                     time.sleep(1)
