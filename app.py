@@ -40,11 +40,9 @@ def fb_post(path, data):
 # --- FUNÇÃO DE ENVIO DE E-MAIL REAL ---
 def enviar_email_relatorio(destinatario, assunto, corpo):
     try:
-        # DADOS DO REMETENTE (ASB AUTOMAÇÃO)
         remetente = "asbautomacao@gmail.com"
-        
-        # IMPORTANTE: Cole sua Senha de App de 16 dígitos entre as aspas abaixo
-        senha_app = "COLE_AQUI_SUA_SENHA_DE_APP" 
+        # ATENÇÃO ALDO: Verifique se aqui estão as 16 letras da Senha de App do Google
+        senha_app = "COLE_AQUI_SUA_SENHA_DE_16_LETRAS" 
 
         msg = MIMEMultipart()
         msg['From'] = remetente
@@ -121,27 +119,24 @@ else:
 
     elif aba == "📊 RELATÓRIOS":
         st.title("📊 RELATÓRIOS E LOGS")
-        
         tab1, tab2 = st.tabs(["Histórico Operacional", "Log de Acessos"])
         
         with tab1:
             st.subheader("Registros da Máquina")
             logs = fb_get("logs/operacao", {})
             texto_relatorio = "RELATÓRIO DE OPERAÇÃO ASB\n\n"
-            
             if logs:
                 for id, info in reversed(list(logs.items())):
                     linha = f"🕒 {info['data']} - {info['acao']}"
                     st.write(linha)
                     texto_relatorio += linha + "\n"
-            
             st.divider()
             st.subheader("📧 Enviar para Cliente")
             email_cliente = st.text_input("Digite o e-mail do destinatário:")
             if st.button("ENVIAR AGORA"):
                 if email_cliente:
                     if enviar_email_relatorio(email_cliente, "Relatório Operacional ASB", texto_relatorio):
-                        st.success(f"Relatório enviado para {email_cliente}!")
+                        st.success(f"Relatório enviado com sucesso para {email_cliente}!")
                 else:
                     st.warning("Por favor, digite um e-mail válido.")
 
