@@ -1,19 +1,19 @@
 import streamlit as st
 import requests
 import time
-import pandas as pd
-from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="ASB AUTOMACÃO V2", layout="wide")
 
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# --- ESTILO PARA MELHORAR O VISUAL ---
+# --- ESTILO PARA LIMPEZA DE TELA ---
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3em; }
-    [data-testid="stMetricValue"] { font-size: 40px; }
+    /* Esconde elementos que podem causar poluição visual entre trocas */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -31,59 +31,64 @@ def fb_set(path, value):
     except:
         pass
 
-# --- MENU LATERAL (ORGANIZAÇÃO DAS TELAS) ---
-st.sidebar.title("MENU DE CONTROLE")
-aba_selecionada = st.sidebar.radio("Selecione a Tela:", ["🕹️ Controle de Dispositivos", "📈 Monitoramento de Temperatura"])
+# --- MENU LATERAL ---
+st.sidebar.header("⚙️ NAVEGAÇÃO ASB")
+aba = st.sidebar.radio("Ir para:", ["🕹️ Painel de Controle", "📈 Gráfico de Temperatura"])
 
-# --- LÓGICA DE SEPARAÇÃO DE TELAS ---
+# --- LÓGICA DE TROCA DE TELA (USANDO IF/ELSE E EMPTY) ---
 
-# TELA 1: CONTROLE DE DISPOSITIVOS
-if aba_selecionada == "🕹️ Controle de Dispositivos":
-    st.header("🕹️ Controle de Dispositivos")
+# TELA 1: PAINEL DE CONTROLE
+if aba == "🕹️ Painel de Controle":
+    # Todo o conteúdo aqui dentro SÓ existe nesta condição
+    st.header("🕹️ Painel de Controle")
+    st.write("Gerencie o acionamento dos dispositivos abaixo.")
     st.divider()
     
     led = fb_get("controle/led", "OFF")
     
-    col1, col2 = st.columns(2)
+    col_btn, col_view = st.columns(2)
     
-    with col1:
+    with col_btn:
         st.subheader("Comandos")
-        if st.button("🟢 LIGAR LED"):
+        if st.button("🟢 LIGAR SISTEMA"):
             fb_set("controle/led", "ON")
             st.rerun()
 
-        if st.button("🔴 DESLIGAR LED"):
+        if st.button("🔴 DESLIGAR SISTEMA"):
             fb_set("controle/led", "OFF")
             st.rerun()
 
-    with col2:
-        st.subheader("Status Atual")
-        # Garante que tratamos o valor como string para evitar erro
-        led_str = str(led)
-        cor = "🟢" if "ON" in led_str.upper() else "🔴"
-        st.markdown(f"<div style='text-align: center; border: 2px solid grey; padding: 20px; border-radius: 10px;'>"
-                    f"<h1>{cor} {led_str}</h1>"
-                    f"</div>", unsafe_allow_html=True)
+    with col_view:
+        st.subheader("Status")
+        led_str = str(led).upper()
+        cor_led = "🟢" if "ON" in led_str else "🔴"
+        st.markdown(f"""
+            <div style='text-align: center; border: 3px solid #444; padding: 25px; border-radius: 15px;'>
+                <h1 style='margin:0;'>{cor_led} {led_str}</h1>
+            </div>
+        """, unsafe_allow_html=True)
 
-# TELA 2: MONITORAMENTO DE TEMPERATURA
-elif aba_selecionada == "📈 Monitoramento de Temperatura":
+# TELA 2: MONITORAMENTO
+elif aba == "📈 Gráfico de Temperatura":
+    # Todo o conteúdo aqui dentro DESAPARECE quando você volta para o controle
     st.header("📈 Monitoramento de Temperatura")
+    st.write("Leitura em tempo real do sensor DHT11.")
     st.divider()
     
     temperatura = fb_get("sensor/temperatura")
     status = fb_get("sensor/status", "ERRO")
     
-    col_metrica, col_info = st.columns([1, 2])
+    c1, c2 = st.columns([1, 2])
     
-    with col_metrica:
+    with c1:
         if status == "OK" and isinstance(temperatura, (int, float)):
             st.metric("Temperatura Atual", f"{temperatura:.2f} °C")
         else:
-            st.error("Falha na leitura do sensor")
+            st.error("⚠️ Sensor Offline")
             
-    with col_info:
-        st.info("Os dados são atualizados em tempo real vindos do coletor local.")
+    with c2:
+        st.info("O sistema está monitorando as variações térmicas enviadas pelo coletor local.")
 
-# --- ATUALIZAÇÃO AUTOMÁTICA ---
+# --- ATUALIZAÇÃO ---
 time.sleep(2)
 st.rerun()
