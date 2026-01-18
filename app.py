@@ -11,14 +11,13 @@ st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# --- DESIGN INDUSTRIAL ASB (AJUSTADO PARA CONTRASTE) ---
+# --- DESIGN INDUSTRIAL ASB ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3.5em; font-weight: bold; background-color: #1f2937; color: white; border: 1px solid #4a4a4a;}
     .stButton>button:hover { border-color: #00ff00; color: #00ff00; }
     
-    /* Blocos de Relatório com Fundo Mais Claro e Bordas Fortes */
     .report-card {
         background-color: #262730;
         padding: 20px;
@@ -92,7 +91,7 @@ if not st.session_state['autenticado']:
                 st.session_state['usuario'] = u
                 fb_post("logs/acessos", {"usuario": u, "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
                 st.rerun()
-            else: st.error("Erro")
+            else: st.error("Credenciais incorretas")
 else:
     # --- MENU ---
     st.sidebar.markdown("<h2 style='text-align:center; color:#00ff00;'>ASB V2</h2>", unsafe_allow_html=True)
@@ -138,4 +137,42 @@ else:
         show_temp()
 
     elif aba == "📊 RELATÓRIOS":
-        st.title("📊 RELATÓRI
+        st.title("📊 RELATÓRIOS TÉCNICOS")
+        tab1, tab2 = st.tabs(["📌 Histórico Operacional", "🔒 Log de Acessos"])
+        
+        with tab1:
+            logs = fb_get("logs/operacao", {})
+            texto_email = "RELATÓRIO ESTRUTURADO ASB AUTOMAÇÃO\n" + "="*40 + "\n\n"
+            if logs:
+                for id, info in reversed(list(logs.items())):
+                    is_falha = info.get('falha', False)
+                    temp_val = info.get('temp', '---')
+                    if is_falha:
+                        st.markdown(f"""<div class="fail-card">
+                        <span class="card-title">⚠️ FALHA DE LEITURA</span>
+                        <span class="card-text">🕒 {info['data']} | Ação: {info['acao']}</span><br>
+                        <span class="card-text">Status: Comunicação interrompida</span>
+                        </div>""", unsafe_allow_html=True)
+                        texto_email += f"[!] FALHA - {info['data']} - {info['acao']}\n\n"
+                    else:
+                        st.markdown(f"""<div class="report-card">
+                        <span class="card-title">✅ OPERAÇÃO NORMAL</span>
+                        <span class="card-text">🕒 {info['data']} | Ação: {info['acao']}</span><br>
+                        <span class="card-text">🌡️ Temperatura: {temp_val} °C</span>
+                        </div>""", unsafe_allow_html=True)
+                        texto_email += f"[*] NORMAL - {info['data']} - {info['acao']} - Temp: {temp_val}C\n\n"
+            
+            st.divider()
+            email_cliente = st.text_input("Enviar relatório para:")
+            if st.button("ENVIAR AGORA"):
+                if email_cliente:
+                    if enviar_email_relatorio(email_cliente, "Relatório Industrial ASB", texto_email):
+                        st.success("E-mail enviado com sucesso!")
+                else: st.warning("Informe o e-mail.")
+
+        with tab2:
+            st.subheader("Controle de Segurança")
+            acessos = fb_get("logs/acessos", {})
+            if acessos:
+                for id, info in reversed(list(acessos.items())):
+                    st.info(f"👤 USUÁRIO: {info['usuario']} | 📅 DATA: {info['data']}")
