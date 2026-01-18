@@ -51,6 +51,24 @@ def fb_delete(path):
     try: requests.delete(f"{URL_FB}{path}.json", timeout=3)
     except: pass
 
+# --- FUNÇÃO DE E-MAIL ---
+def enviar_email_relatorio(destinatario, assunto, corpo):
+    try:
+        remetente = "asbautomacao@gmail.com"
+        senha_app = "qmvm fnsn afok jejs" 
+        msg = MIMEMultipart()
+        msg['From'] = remetente
+        msg['To'] = destinatario
+        msg['Subject'] = assunto
+        msg.attach(MIMEText(corpo, 'plain'))
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remetente, senha_app)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except: return False
+
 # --- LÓGICA DE LOGIN ---
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
@@ -89,6 +107,9 @@ else:
         
     aba = st.sidebar.radio("MENU", opcoes_menu)
     st.sidebar.divider()
+    
+    # Restauração do Botão de E-mail Automático
+    envio_auto = st.sidebar.toggle("Envio de E-mail Automático", value=False)
     email_destino = st.sidebar.text_input("E-mail para Alertas", value="asbautomacao@gmail.com")
     
     if st.sidebar.button("SAIR"):
@@ -106,7 +127,11 @@ else:
                 fb_set("controle/led", "ON")
                 dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 fb_post("logs/operacao", {"acao": f"LIGOU ({st.session_state['usuario']})", "temp": t, "umid": u, "data": dt})
-                st.toast("Comando Enviado: LIGAR")
+                
+                if envio_auto:
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA LIGADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C | Umid: {u}%\nData: {dt}")
+                
+                st.toast("Ligado!")
             
             if st.button("DESLIGAR MÁQUINA"):
                 t = fb_get("sensor/temperatura", "0")
@@ -114,11 +139,14 @@ else:
                 fb_set("controle/led", "OFF")
                 dt = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 fb_post("logs/operacao", {"acao": f"DESLIGOU ({st.session_state['usuario']})", "temp": t, "umid": u, "data": dt})
-                st.toast("Comando Enviado: DESLIGAR")
+                
+                if envio_auto:
+                    enviar_email_relatorio(email_destino, "ASB - MÁQUINA PARADA", f"Ação por: {st.session_state['usuario']}\nTemp: {t}°C | Umid: {u}%\nData: {dt}")
+                
+                st.toast("Desligado!")
         with c2:
             st.subheader("Status da Máquina")
             status_placeholder = st.empty()
-            # Fragmento para atualizar apenas o status visual
             @st.fragment(run_every=4)
             def update_led():
                 led = fb_get("controle/led", "OFF")
@@ -126,11 +154,9 @@ else:
                 status_placeholder.markdown(f"<div style='border:2px solid #374151;padding:20px;text-align:center;background-color:#1f2937;'><h2>{cor}</h2></div>", unsafe_allow_html=True)
             update_led()
 
-    # --- TELA: TELEMETRIA (CORRIGIDA) ---
+    # --- TELA: TELEMETRIA ---
     elif aba == "📈 TELEMETRIA":
         st.title("📈 MONITORAMENTO")
-        
-        # Cria dois espaços fixos para os valores
         col1, col2 = st.columns(2)
         placeholder_t = col1.empty()
         placeholder_u = col2.empty()
@@ -139,10 +165,8 @@ else:
         def update_metrics():
             t = fb_get("sensor/temperatura", "0")
             u = fb_get("sensor/umidade", "0")
-            # O .metric dentro do placeholder substitui o valor antigo
             placeholder_t.metric("🌡️ TEMPERATURA", f"{t} °C")
             placeholder_u.metric("💧 UMIDADE", f"{u} %")
-        
         update_metrics()
 
     # --- TELA: RELATÓRIOS ---
