@@ -1,0 +1,4 @@
+firebase-admin
+streamlit
+plotly
+pandas
