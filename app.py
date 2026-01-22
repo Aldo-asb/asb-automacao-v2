@@ -8,16 +8,20 @@ from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# --- 1. CONEXÃO FIREBASE (VERSÃO AUTO-LIMPEZA) ---
+# --- 1. CONEXÃO FIREBASE (VERSÃO BLINDADA) ---
 def inicializar_firebase():
     if not firebase_admin._apps:
         try:
-            if "firebase_creds" in st.secrets:
-                # Remove espaços em branco acidentais e converte para dicionário
-                info = st.secrets["firebase_creds"]
-                if isinstance(info, str):
-                    info = json.loads(info.strip())
-                cred = credentials.Certificate(info)
+            # Pega tudo que estiver no Secrets, independente do nome da chave
+            # Isso evita o erro de "InvalidByte" por causa do nome da variável
+            if st.secrets:
+                # Se você colou como JSON puro, pegamos o dicionário completo
+                creds_dict = dict(st.secrets)
+                # Caso você tenha colado com o nome 'firebase_creds'
+                if "firebase_creds" in creds_dict:
+                    creds_dict = json.loads(st.secrets["firebase_creds"])
+                
+                cred = credentials.Certificate(creds_dict)
             else:
                 cred = credentials.Certificate("chave_firebase.json..json")
             
@@ -26,8 +30,7 @@ def inicializar_firebase():
             })
             return True
         except Exception as e:
-            st.error(f"Erro de Conexão: {e}")
-            st.info("Dica: Verifique se colou o JSON corretamente no painel Secrets.")
+            st.error(f"Erro Crítico: {e}")
             return False
     return True
 
@@ -83,7 +86,6 @@ if inicializar_firebase():
                                 st.rerun()
                     st.error("Credenciais inválidas")
     else:
-        # --- MENU LATERAL ---
         st.sidebar.markdown(f"<h2 style='color:#00ff00;'>Olá, {st.session_state['usuario']}</h2>", unsafe_allow_html=True)
         menu = ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"]
         if st.session_state['role'] == "admin": menu.append("👤 GESTÃO")
@@ -96,7 +98,6 @@ if inicializar_firebase():
             st.session_state['autenticado'] = False
             st.rerun()
 
-        # --- ABA: COMANDO ---
         if aba == "🕹️ COMANDO":
             st.title("🕹️ CENTRO DE COMANDO")
             c1, c2 = st.columns(2)
@@ -124,21 +125,19 @@ if inicializar_firebase():
                     status_placeholder.markdown(f"<div class='status-container'><span style='font-size:50px;'>{cor}</span><span class='status-text'>MÁQUINA {texto}</span></div>", unsafe_allow_html=True)
                 monitor_led()
 
-        # --- ABA: TELEMETRIA ---
         elif aba == "📈 TELEMETRIA":
             st.title("📈 MONITORAMENTO")
-            m1, m2 = st.columns(2)
-            p1, p2 = m1.empty(), m2.empty()
+            p1, p2 = st.columns(2)
+            t_area, u_area = p1.empty(), p2.empty()
             @st.fragment(run_every=4)
             def monitor_sensores():
-                p1.metric("🌡️ TEMPERATURA", f"{db.reference('sensor/temperatura').get() or '0'} °C")
-                p2.metric("💧 UMIDADE", f"{db.reference('sensor/umidade').get() or '0'} %")
+                t_area.metric("🌡️ TEMPERATURA", f"{db.reference('sensor/temperatura').get() or '0'} °C")
+                u_area.metric("💧 UMIDADE", f"{db.reference('sensor/umidade').get() or '0'} %")
             monitor_sensores()
 
-        # --- ABA: RELATÓRIOS ---
         elif aba == "📊 RELATÓRIOS":
             st.title("📊 HISTÓRICO")
-            if st.button("🗑️ LIMPAR TUDO"):
+            if st.button("🗑️ LIMPAR LOGS"):
                 db.reference("logs/operacao").delete(); st.rerun()
             logs = db.reference("logs/operacao").get()
             if logs:
