@@ -2,13 +2,12 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, db
 import json
-from datetime import datetime, timedelta
 
-# --- 1. CONEXÃO DIRETA ---
+# --- 1. CONEXÃO DIRETA CORRIGIDA ---
 def conectar():
     if not firebase_admin._apps:
         try:
-            # Pega as chaves direto dos segredos do Streamlit
+            # Pega as chaves campo a campo dos Secrets
             creds = {
                 "type": st.secrets["type"],
                 "project_id": st.secrets["project_id"],
@@ -19,7 +18,8 @@ def conectar():
                 "auth_uri": st.secrets["auth_uri"],
                 "token_uri": st.secrets["token_uri"],
                 "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["client_x509_cert_url"]
+                "client_x509_cert_url": st.secrets["client_x509_cert_url"],
+                "universe_domain": st.secrets["universe_domain"]
             }
             cred = credentials.Certificate(creds)
             firebase_admin.initialize_app(cred, {
@@ -31,38 +31,36 @@ def conectar():
             return False
     return True
 
-# --- 2. INTERFACE SIMPLIFICADA ---
+# --- 2. INTERFACE ---
 st.set_page_config(page_title="ASB INDUSTRIAL", layout="wide")
 
 if conectar():
-    st.title("🏭 ASB AUTOMAÇÃO INDUSTRIAL")
+    st.title("🏭 ASB AUTOMAÇÃO")
     
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
     
-    with col1:
+    with c1:
         st.subheader("🕹️ Controles")
         if st.button("LIGAR MÁQUINA"):
             db.reference("controle/led").set("ON")
-            st.success("Comando enviado: LIGAR")
+            st.toast("Ligando...")
             
         if st.button("DESLIGAR MÁQUINA"):
             db.reference("controle/led").set("OFF")
-            st.warning("Comando enviado: DESLIGAR")
+            st.toast("Desligando...")
 
-    with col2:
-        st.subheader("📊 Status em Tempo Real")
+    with c2:
+        st.subheader("📊 Status")
         status_area = st.empty()
         
-        # Fragmento para atualizar só o status sem carregar a página toda
         @st.fragment(run_every=3)
-        def check_status():
+        def monitor():
             estado = db.reference("controle/led").get() or "OFF"
-            cor = "🟢 LIGADA" if "ON" in str(estado).upper() else "🔴 DESLIGADA"
-            status_area.markdown(f"## Status: {cor}")
+            txt = "🟢 LIGADA" if "ON" in str(estado).upper() else "🔴 DESLIGADA"
+            status_area.markdown(f"## {txt}")
             
             t = db.reference("sensor/temperatura").get() or "0"
             u = db.reference("sensor/umidade").get() or "0"
-            st.metric("🌡️ Temperatura", f"{t} °C")
-            st.metric("💧 Umidade", f"{u} %")
-        
-        check_status()
+            st.metric("🌡️ Temp", f"{t} °C")
+            st.metric("💧 Umid", f"{u} %")
+        monitor()
