@@ -8,11 +8,10 @@ from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# --- 1. CONEXÃO FIREBASE (CONFIGURAÇÃO PELOS SECRETS) ---
+# --- 1. CONEXÃO FIREBASE (VIA SECRETS TOML) ---
 def inicializar_firebase():
     if not firebase_admin._apps:
         try:
-            # Pega as chaves campo a campo dos Secrets (Formato TOML)
             creds = {
                 "type": st.secrets["type"],
                 "project_id": st.secrets["project_id"],
@@ -36,17 +35,15 @@ def inicializar_firebase():
             return False
     return True
 
-# --- 2. CONFIGURAÇÕES DE PÁGINA E DESIGN INDUSTRIAL ---
+# --- 2. DESIGN E CSS INDUSTRIAL ---
 st.set_page_config(page_title="ASB INDUSTRIAL V3", layout="wide", page_icon="🏭")
 
-# CSS para visual profissional e escuro
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
     .stButton>button { 
         width: 100%; border-radius: 5px; height: 3.5em; font-weight: bold; 
         background-color: #1f2937; color: white; border: 1px solid #4a4a4a;
-        transition: 0.3s;
     }
     .stButton>button:hover { border-color: #00ff00; color: #00ff00; background-color: #111827; }
     .status-container { 
@@ -58,32 +55,29 @@ st.markdown("""
         background-color: #2d3748; padding: 15px; border-radius: 8px; 
         border-left: 5px solid #4ade80; margin-bottom: 10px; color: white; 
     }
-    .metric-box { background-color: #1f2937; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #374151; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE SUPORTE ---
+# --- 3. FUNÇÕES AUXILIARES ---
 def get_hora_brasil():
     return (datetime.now() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
 
 def enviar_email_relatorio(destinatario, assunto, corpo):
     try:
         remetente = "asbautomacao@gmail.com"
-        senha = "qmvm fnsn afok jejs" # Sua senha de app configurada
+        senha = "qmvm fnsn afok jejs" 
         msg = MIMEMultipart()
         msg['From'] = remetente
         msg['To'] = destinatario
         msg['Subject'] = assunto
         msg.attach(MIMEText(corpo, 'plain'))
-        
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(remetente, senha)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        print(f"Erro e-mail: {e}")
+    except:
         return False
 
 # --- 4. LÓGICA DO SISTEMA ---
@@ -91,7 +85,6 @@ if inicializar_firebase():
     if 'autenticado' not in st.session_state:
         st.session_state['autenticado'] = False
 
-    # TELA DE LOGIN
     if not st.session_state['autenticado']:
         st.markdown("<h1 style='text-align:center; color:#00ff00;'>ASB AUTOMAÇÃO INDUSTRIAL</h1>", unsafe_allow_html=True)
         col_l, col_c, col_r = st.columns([1, 2, 1])
@@ -112,18 +105,13 @@ if inicializar_firebase():
                                     st.rerun()
                         st.error("Credenciais inválidas")
     
-    # SISTEMA APÓS LOGIN
     else:
-        # MENU LATERAL PROFISSIONAL
+        # MENU LATERAL
         st.sidebar.markdown(f"<h2 style='color:#00ff00; text-align:center;'>🏭 ASB INDUSTRIAL</h2>", unsafe_allow_html=True)
-        st.sidebar.markdown(f"<p style='text-align:center;'>Operador: <b>{st.session_state['usuario']}</b></p>", unsafe_allow_html=True)
-        st.sidebar.divider()
-        
         menu = ["🕹️ COMANDO", "📈 TELEMETRIA", "📊 RELATÓRIOS"]
         if st.session_state['role'] == "admin": menu.append("👤 GESTÃO")
         aba = st.sidebar.radio("NAVEGAÇÃO", menu)
 
-        st.sidebar.divider()
         envio_auto = st.sidebar.toggle("E-mail Automático", True)
         email_destino = st.sidebar.text_input("E-mail de Alerta", "asbautomacao@gmail.com")
 
@@ -131,55 +119,68 @@ if inicializar_firebase():
             st.session_state['autenticado'] = False
             st.rerun()
 
-        # --- ABA: COMANDO ---
+        # ABA: COMANDO
         if aba == "🕹️ COMANDO":
             st.title("🕹️ CENTRO DE COMANDO")
-            c1, c2 = st.columns([1, 1])
-            
+            c1, c2 = st.columns(2)
             with c1:
-                st.markdown("### Controle de Atuadores")
                 if st.button("🚀 LIGAR SISTEMA"):
                     db.reference("controle/led").set("ON")
                     agora = get_hora_brasil()
                     t = db.reference("sensor/temperatura").get() or "0"
-                    db.reference("logs/operacao").push({"acao": f"LIGOU", "user": st.session_state['usuario'], "temp": t, "data": agora})
+                    db.reference("logs/operacao").push({"acao": "LIGOU", "user": st.session_state['usuario'], "temp": t, "data": agora})
                     if envio_auto:
-                        enviar_email_relatorio(email_destino, "ALERTA ASB: SISTEMA LIGADO", f"O sistema foi acionado por {st.session_state['usuario']} às {agora}.\nTemperatura Atual: {t}°C")
-                    st.toast("Comando de Ligar enviado!")
+                        enviar_email_relatorio(email_destino, "ASB: SISTEMA LIGADO", f"Acionado por {st.session_state['usuario']} às {agora}.\nTemp: {t}°C")
+                    st.toast("Ligado!")
 
                 if st.button("🛑 DESLIGAR SISTEMA"):
                     db.reference("controle/led").set("OFF")
                     agora = get_hora_brasil()
                     t = db.reference("sensor/temperatura").get() or "0"
-                    db.reference("logs/operacao").push({"acao": f"DESLIGOU", "user": st.session_state['usuario'], "temp": t, "data": agora})
+                    db.reference("logs/operacao").push({"acao": "DESLIGOU", "user": st.session_state['usuario'], "temp": t, "data": agora})
                     if envio_auto:
-                        enviar_email_relatorio(email_destino, "ALERTA ASB: SISTEMA DESLIGADO", f"O sistema foi desligado por {st.session_state['usuario']} às {agora}.")
-                    st.toast("Comando de Desligar enviado!")
+                        enviar_email_relatorio(email_destino, "ASB: SISTEMA DESLIGADO", f"Desligado por {st.session_state['usuario']} às {agora}.")
+                    st.toast("Desligado!")
 
             with c2:
-                st.markdown("### Monitor de Estado")
                 status_placeholder = st.empty()
                 @st.fragment(run_every=2)
                 def monitor_led():
                     estado = db.reference("controle/led").get() or "OFF"
                     cor, texto = ("🟢", "EM OPERAÇÃO") if "ON" in str(estado).upper() else ("🔴", "DESATIVADA")
-                    status_placeholder.markdown(f"""
-                        <div class='status-container'>
-                            <span style='font-size:60px;'>{cor}</span>
-                            <span class='status-text'>MÁQUINA {texto}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    status_placeholder.markdown(f"<div class='status-container'><span style='font-size:60px;'>{cor}</span><span class='status-text'>MÁQUINA {texto}</span></div>", unsafe_allow_html=True)
                 monitor_led()
 
-        # --- ABA: TELEMETRIA ---
+        # ABA: TELEMETRIA
         elif aba == "📈 TELEMETRIA":
-            st.title("📈 TELEMETRIA EM TEMPO REAL")
+            st.title("📈 TELEMETRIA")
             m1, m2 = st.columns(2)
             t_placeholder = m1.empty()
             u_placeholder = m2.empty()
-            
             @st.fragment(run_every=3)
             def atualizar_metricas():
                 temp = db.reference('sensor/temperatura').get() or '0'
                 umid = db.reference('sensor/umidade').get() or '0'
-                t_placeholder.metric("🌡️ TEMPERATURA", f"{temp} °
+                t_placeholder.metric("🌡️ TEMPERATURA", f"{temp} °C")
+                u_placeholder.metric("💧 UMIDADE", f"{umid} %")
+            atualizar_metricas()
+
+        # ABA: RELATÓRIOS
+        elif aba == "📊 RELATÓRIOS":
+            st.title("📊 HISTÓRICO")
+            if st.button("🗑️ LIMPAR LOGS"):
+                db.reference("logs/operacao").delete()
+                st.rerun()
+            logs = db.reference("logs/operacao").get()
+            if logs:
+                for id, info in reversed(list(logs.items())):
+                    st.markdown(f"<div class='report-card'><small>📅 {info.get('data')}</small><br><b>AÇÃO: {info.get('acao')}</b> | {info.get('user')} | {info.get('temp')}°C</div>", unsafe_allow_html=True)
+
+        # ABA: GESTÃO
+        elif aba == "👤 GESTÃO":
+            st.title("👤 GESTÃO DE USUÁRIOS")
+            with st.form("Novo"):
+                nu, ns = st.text_input("Usuário"), st.text_input("Senha")
+                if st.form_submit_button("CADASTRAR"):
+                    db.reference("config/usuarios").push({"user": nu, "pass": ns})
+                    st.success("Cadastrado!"); st.rerun()
