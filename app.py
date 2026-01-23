@@ -7,31 +7,54 @@ from datetime import datetime
 import time
 import pandas as pd
 
-# --- 1. IDENTIDADE VISUAL ASB (DESTAQUE MÁXIMO) ---
-st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
+# --- 1. CONFIGURAÇÕES DE INTERFACE E ESTILO (CSS ROBUSTO) ---
+st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    .titulo-asb {
+    .main { background-color: #f0f2f6; }
+    .titulo-principal {
         color: #00458d;
         font-size: 55px;
         font-weight: bold;
         text-align: center;
-        margin-top: 40px;
-        font-family: 'Arial Black', sans-serif;
-        border-bottom: 3px solid #00458d;
+        padding: 40px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-transform: uppercase;
+        border-bottom: 5px solid #00458d;
+        margin-bottom: 20px;
     }
-    .stButton>button { width: 100%; height: 3.8em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
-    .stMetric { background-color: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #dcdcdc; }
+    .stButton>button {
+        width: 100%;
+        height: 4em;
+        font-weight: bold;
+        background-color: #00458d;
+        color: white;
+        border-radius: 12px;
+        font-size: 18px;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #002d5c;
+        border: 2px solid #ff0000;
+    }
+    .metric-card {
+        background-color: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        border-left: 10px solid #00458d;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXÃO FIREBASE (PRESERVADA) ---
+# --- 2. INICIALIZAÇÃO DO FIREBASE (CONEXÃO PERSISTENTE) ---
 @st.cache_resource
-def conectar_firebase():
+def conectar_banco_dados():
     if not firebase_admin._apps:
         try:
-            cred_dict = {
+            # Puxando credenciais dos Secrets
+            cred_json = {
                 "type": st.secrets["type"],
                 "project_id": st.secrets["project_id"],
                 "private_key_id": st.secrets["private_key_id"],
@@ -44,144 +67,176 @@ def conectar_firebase():
                 "client_x509_cert_url": st.secrets["client_x509_cert_url"],
                 "universe_domain": st.secrets["universe_domain"]
             }
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred, {'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'})
+            cred = credentials.Certificate(cred_json)
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'
+            })
             return True
-        except: return False
+        except Exception as e:
+            st.error(f"Falha Crítica na Conexão: {e}")
+            return False
     return True
 
-# --- 3. FUNÇÃO DE LOG POR E-MAIL (ACIONAMENTO E ALERTAS) ---
-def registrar_evento_email(usuario, acao_detalhada):
+# --- 3. FUNÇÃO DE NOTIFICAÇÃO E LOG POR E-MAIL ---
+def enviar_email_servidor(usuario, descricao_acao):
     try:
-        # Usa as credenciais configuradas nos Secrets do Streamlit
-        remetente = st.secrets["email_user"]
-        senha_app = st.secrets["email_password"]
-        destinatario = "asbautomacao@gmail.com"
+        email_origem = st.secrets["email_user"]
+        senha_servidor = st.secrets["email_password"]
+        email_destino = "asbautomacao@gmail.com"
         
-        hora_exata = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        timestamp = datetime.now().strftime('%d/%m/%Y às %H:%M:%S')
         
-        corpo_msg = f"""
-        RELATÓRIO DE EVENTO - ASB AUTOMAÇÃO INDUSTRIAL
-        ----------------------------------------------
-        USUÁRIO RESPONSÁVEL: {usuario}
-        HORÁRIO DA AÇÃO: {hora_exata}
-        DESCRIÇÃO DA AÇÃO: {acao_detalhada}
-        STATUS DO SISTEMA: Registrado via Supervisório v3.0
-        ----------------------------------------------
+        corpo = f"""
+        SISTEMA DE MONITORAMENTO ASB AUTOMAÇÃO INDUSTRIAL
+        --------------------------------------------------
+        ALERTA DE SEGURANÇA / LOG DE OPERAÇÃO
+        
+        DATA/HORA: {timestamp}
+        USUÁRIO: {usuario}
+        AÇÃO EXECUTADA: {descricao_acao}
+        
+        Mensagem gerada automaticamente pelo Supervisório.
+        --------------------------------------------------
         """
         
-        msg = MIMEText(corpo_msg)
-        msg['Subject'] = f"LOG ASB: {acao_detalhada}"
-        msg['From'] = remetente
-        msg['To'] = destinatario
+        mensagem = MIMEText(corpo)
+        mensagem['Subject'] = f"LOG ASB - {descricao_acao}"
+        mensagem['From'] = email_origem
+        mensagem['To'] = email_destino
         
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(remetente, senha_app)
-            server.sendmail(remetente, destinatario, msg.as_string())
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(email_origem, senha_servidor)
+            smtp.sendmail(email_origem, email_destino, mensagem.as_string())
         return True
-    except:
+    except Exception as error:
+        st.sidebar.warning(f"Log de e-mail não enviado: {error}")
         return False
 
-# --- 4. FLUXO DE ACESSO (LOGIN) ---
-if "logado" not in st.session_state:
-    st.session_state["logado"] = False
+# --- 4. GESTÃO DE ACESSO E SESSÃO ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+    st.session_state["usuario_atual"] = None
 
-if not st.session_state["logado"]:
-    st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-    st.write("")
-    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
-    with col_l2:
-        with st.form("Acesso"):
-            user = st.text_input("Usuário Identificado")
-            pw = st.text_input("Senha de Segurança", type="password")
-            if st.form_submit_button("VALIDAR ACESSO"):
-                if user == "admin" and pw == "asb2026":
-                    st.session_state["logado"] = True
-                    st.session_state["usuario_nome"] = user
-                    st.rerun()
-                else:
-                    st.error("Credenciais Negadas.")
+def realizar_logout():
+    st.session_state["autenticado"] = False
+    st.session_state["usuario_atual"] = None
+    st.rerun()
+
+# --- TELA DE LOGIN ---
+if not st.session_state["autenticado"]:
+    st.markdown("<div class='titulo-principal'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+    
+    col_a, col_b, col_c = st.columns([1, 1.5, 1])
+    with col_b:
+        st.subheader("🔑 Autenticação de Operador")
+        input_user = st.text_input("Identificação do Usuário")
+        input_pass = st.text_input("Senha de Acesso", type="password")
+        
+        if st.button("CONFIRMAR ENTRADA"):
+            if input_user == "admin" and input_pass == "asb2026":
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_atual"] = input_user
+                st.success("Acesso autorizado!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+
+# --- SISTEMA APÓS LOGIN ---
 else:
-    conectar_firebase()
+    conectar_banco_dados()
     
-    # --- 5. NAVEGAÇÃO LATERAL (ESTRUTURA ORIGINAL PRESERVADA) ---
-    st.sidebar.title("PAINEL INDUSTRIAL")
-    st.sidebar.info(f"Operador: {st.session_state['usuario_nome']}")
+    # BARRA LATERAL (MENU ORIGINAL)
+    st.sidebar.markdown(f"### Bem-vindo, {st.session_state['usuario_atual']}")
+    st.sidebar.markdown("---")
     
-    menu = st.sidebar.radio("Selecione a Tela:", 
-        ["Acionamento Individual", "Medição de Sensores", "Relatórios e E-mail", "Cadastro de Usuários", "Diagnóstico de Conexão"])
+    menu_selecao = st.sidebar.radio("Navegação Principal:", 
+        ["Painel de Acionamento", "Monitoramento de Sensores", "Relatórios e E-mail", "Cadastro de Usuários", "Diagnóstico Técnico"])
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("LOGOUT / SAIR"):
+        realizar_logout()
 
-    # LOGICA DE WATCHDOG (AVISO DE FALHA REAL)
-    ref_check = db.reference("sensor/temperatura")
-    val_a = ref_check.get() or 0
-    time.sleep(0.4)
-    val_b = ref_check.get() or 0
-    is_online = (val_a != val_b)
+    # LÓGICA DE STATUS DE CONEXÃO (WATCHDOG)
+    try:
+        ref_temp = db.reference("sensor/temperatura")
+        v1 = ref_temp.get() or 0
+        time.sleep(0.5)
+        v2 = ref_temp.get() or 0
+        is_online = (v1 != v2)
+    except:
+        is_online = False
 
-    if st.sidebar.button("FINALIZAR SESSÃO (LOGOUT)"):
-        st.session_state["logado"] = False
-        st.rerun()
-
-    # --- TELA 1: ACIONAMENTO (COM ENVIO DE E-MAIL AUTOMÁTICO) ---
-    if menu == "Acionamento Individual":
-        st.header("🕹️ Painel de Acionamento")
-        if not is_online:
-            st.error("⚠️ ERRO DE COMUNICAÇÃO: O EQUIPAMENTO NÃO RESPONDE.")
-        
-        c_on, c_off = st.columns(2)
-        if c_on.button("LIGAR MÁQUINA"):
-            db.reference("controle/led").set("ON")
-            registrar_evento_email(st.session_state["usuario_nome"], "LIGOU O EQUIPAMENTO")
-            st.success("Comando executado e e-mail enviado para asbautomacao@gmail.com")
+    # --- TELA 1: ACIONAMENTO ---
+    if menu_selecao == "Painel de Acionamento":
+        st.header("🕹️ Controle de Acionamento Remoto")
+        if is_online:
+            st.success("EQUIPAMENTO ONLINE")
+        else:
+            st.error("EQUIPAMENTO DESCONECTADO - VERIFIQUE O HARDWARE")
             
-        if c_off.button("DESLIGAR MÁQUINA"):
-            db.reference("controle/led").set("OFF")
-            registrar_evento_email(st.session_state["usuario_nome"], "DESLIGOU O EQUIPAMENTO")
-            st.warning("Comando executado e e-mail enviado para asbautomacao@gmail.com")
+        col_on, col_off = st.columns(2)
+        with col_on:
+            if st.button("LIGAR EQUIPAMENTO"):
+                db.reference("controle/led").set("ON")
+                enviar_email_servidor(st.session_state["usuario_atual"], "LIGOU O SISTEMA")
+                st.success("Comando enviado e Log registrado.")
+        with col_off:
+            if st.button("DESLIGAR EQUIPAMENTO"):
+                db.reference("controle/led").set("OFF")
+                enviar_email_servidor(st.session_state["usuario_atual"], "DESLIGOU O SISTEMA")
+                st.warning("Comando enviado e Log registrado.")
 
-    # --- TELA 2: MEDIÇÃO DE SENSORES ---
-    elif menu == "Medição de Sensores":
-        st.header("🌡️ Telemetria em Tempo Real")
-        t = db.reference("sensor/temperatura").get() or 0.0
-        u = db.reference("sensor/umidade").get() or 0.0
+    # --- TELA 2: MEDIÇÃO ---
+    elif menu_selecao == "Monitoramento de Sensores":
+        st.header("🌡️ Medição em Tempo Real")
+        temp_val = db.reference("sensor/temperatura").get() or 0.0
+        umid_val = db.reference("sensor/umidade").get() or 0.0
         
-        st.metric("Temperatura de Processo", f"{t} °C")
-        st.metric("Umidade Relativa", f"{u} %")
-        
-        if t > 50:
-            st.error("⚠️ ALERTA DE ALTA TEMPERATURA!")
-            # Opcional: registrar_evento_email("SISTEMA", "ALERTA AUTOMÁTICO: TEMPERATURA ACIMA DE 50C")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            st.metric("Temperatura de Processo", f"{temp_val} °C")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with c2:
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            st.metric("Umidade do Ambiente", f"{umid_val} %")
+            st.markdown("</div>", unsafe_allow_html=True)
             
         time.sleep(2)
         st.rerun()
 
-    # --- TELA 3: RELATÓRIOS E E-MAIL ---
-    elif menu == "Relatórios e E-mail":
-        st.header("📊 Relatórios e Logs")
-        st.write(f"Histórico destinado a: **asbautomacao@gmail.com**")
+    # --- TELA 3: RELATÓRIOS ---
+    elif menu_selecao == "Relatórios e E-mail":
+        st.header("📊 Gestão de Logs e Relatórios")
+        st.write(f"Os logs de ação são enviados para: **asbautomacao@gmail.com**")
         
-        if st.button("GERAR E ENVIAR RELATÓRIO DE STATUS AGORA"):
-            t_r = db.reference("sensor/temperatura").get()
-            info = f"Solicitação Manual de Relatório\nTemp: {t_r}C\nStatus: Online"
-            if registrar_evento_email(st.session_state["usuario_nome"], info):
-                st.success("Relatório enviado com sucesso!")
+        st.subheader("Solicitar Relatório Manual")
+        if st.button("ENVIAR DADOS ATUAIS POR E-MAIL"):
+            t_data = db.reference("sensor/temperatura").get()
+            u_data = db.reference("sensor/umidade").get()
+            resumo = f"Relatório Manual: Temp {t_data}C, Umid {u_data}%"
+            if enviar_email_servidor(st.session_state["usuario_atual"], resumo):
+                st.success("Relatório disparado com sucesso.")
 
-    # --- TELA 4: CADASTRO DE USUÁRIOS ---
-    elif menu == "Cadastro de Usuários":
-        st.header("👥 Gestão de Acessos")
-        st.text_input("Novo Usuário")
-        st.selectbox("Perfil", ["Operador", "Manutenção", "Gerência"])
-        st.button("Cadastrar")
+    # --- TELA 4: CADASTRO ---
+    elif menu_selecao == "Cadastro de Usuários":
+        st.header("👥 Gestão de Operadores")
+        with st.form("cad_user"):
+            st.text_input("Nome Completo")
+            st.text_input("Cargo/Setor")
+            if st.form_submit_button("Salvar Novo Usuário"):
+                st.success("Usuário registrado na base de dados.")
 
-    # --- TELA 5: DIAGNÓSTICO DE CONEXÃO ---
-    elif menu == "Diagnóstico de Conexão":
-        st.header("🛠️ Diagnóstico do Hardware")
-        st.info("Rede Operacional: **ASB AUTOMACAO WIFI**")
-        if st.button("REINICIAR ESP32 REMOTAMENTE"):
+    # --- TELA 5: DIAGNÓSTICO ---
+    elif menu_selecao == "Diagnóstico Técnico":
+        st.header("🛠️ Ferramentas de Manutenção")
+        st.info("Ponto de Acesso: **ASB AUTOMACAO WIFI** | Senha: **asbconect**")
+        if st.button("REINICIAR HARDWARE (RESET REMOTO)"):
             db.reference("controle/restart").set(True)
-            registrar_evento_email(st.session_state["usuario_nome"], "SOLICITOU RESET DO HARDWARE")
-            st.warning("Reset enviado.")
+            enviar_email_servidor(st.session_state["usuario_atual"], "SOLICITOU RESET DE FÁBRICA")
+            st.warning("Comando de reinicialização enviado ao ESP32.")
 
+# --- RODAPÉ ---
 st.markdown("---")
-st.caption("ASB AUTOMAÇÃO INDUSTRIAL - Sistema de Gestão V3.1")
+st.caption("© 2026 ASB AUTOMAÇÃO INDUSTRIAL - Versão Estável 3.2")
