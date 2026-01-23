@@ -7,7 +7,7 @@ from datetime import datetime
 import time
 import pandas as pd
 
-# --- 1. CONFIGURAÇÃO VISUAL E CSS ---
+# --- 1. CONFIGURAÇÃO VISUAL ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -19,58 +19,72 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. INICIALIZAÇÃO FIREBASE ---
+# --- 2. INICIALIZAÇÃO FIREBASE (COM PROTEÇÃO DE ERRO) ---
 @st.cache_resource
 def iniciar_firebase():
     if not firebase_admin._apps:
         try:
+            # Uso do .get() para evitar o KeyError
             cred_dict = {
-                "type": st.secrets["type"], "project_id": st.secrets["project_id"],
-                "private_key": st.secrets["private_key"].replace('\\n', '\n'),
-                "client_email": st.secrets["client_email"], "token_uri": st.secrets["token_uri"]
+                "type": st.secrets.get("type"),
+                "project_id": st.secrets.get("project_id"),
+                "private_key_id": st.secrets.get("private_key_id"),
+                "private_key": st.secrets.get("private_key", "").replace('\\n', '\n'),
+                "client_email": st.secrets.get("client_email"),
+                "client_id": st.secrets.get("client_id"),
+                "auth_uri": st.secrets.get("auth_uri"),
+                "token_uri": st.secrets.get("token_uri"),
+                "auth_provider_x509_cert_url": st.secrets.get("auth_provider_x509_cert_url"),
+                "client_x509_cert_url": st.secrets.get("client_x509_cert_url"),
+                "universe_domain": st.secrets.get("universe_domain")
             }
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred, {'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'})
             return True
-        except: return False
+        except Exception as e:
+            st.error(f"Erro nas Credenciais do Firebase: {e}")
+            return False
     return True
 
-# --- 3. FUNÇÃO DE E-MAIL E LOG NO FIREBASE ---
+# --- 3. FUNÇÃO DE E-MAIL E LOG ---
 def registrar_acao(usuario, acao):
     agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     
-    # 3.1. Salvar no Firebase para aparecer na tela de Relatórios
+    # Salvar no Firebase para a tela de Relatórios
     try:
-        log_ref = db.reference("logs_acoes")
-        log_ref.push({
+        db.reference("logs_acoes").push({
             "usuario": usuario,
             "acao": acao,
             "horario": agora
         })
     except: pass
 
-    # 3.2. Enviar E-mail (Lógica que voltou a funcionar)
+    # Enviar E-mail
     if st.session_state.get("envio_auto", True):
         try:
-            remetente = st.secrets["email_user"]
-            senha = st.secrets["email_password"]
-            destinatario = "asbautomacao@gmail.com"
+            # Uso do .get() para evitar que o app pare se o segredo sumir
+            remetente = st.secrets.get("email_user")
+            senha = st.secrets.get("email_password")
             
+            if not remetente or not senha:
+                st.sidebar.error("E-mail não configurado nos Secrets!")
+                return False
+
+            destinatario = "asbautomacao@gmail.com"
             msg = MIMEText(f"SISTEMA ASB INDUSTRIAL\n\nUSUÁRIO: {usuario}\nAÇÃO: {acao}\nHORA: {agora}")
             msg['Subject'] = f"LOG ASB: {acao}"
             msg['From'] = remetente
             msg['To'] = destinatario
             
-            # Usando SMTP_SSL na porta 465 que costuma ser mais estável para Gmail
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.login(remetente, senha)
                 server.sendmail(remetente, destinatario, msg.as_string())
             return True
         except Exception as e:
-            st.sidebar.error(f"Erro e-mail: {e}")
+            st.sidebar.error(f"Falha no envio: {e}")
             return False
 
-# --- 4. LOGIN ---
+# --- 4. CONTROLE DE LOGIN ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "envio_auto" not in st.session_state: st.session_state["envio_auto"] = True
 
@@ -96,11 +110,11 @@ else:
         st.session_state["logado"] = False
         st.rerun()
 
-    # Watchdog de Comunicação
+    # Diagnóstico de Conexão
     try:
-        t1 = db.reference("sensor/temperatura").get()
-        time.sleep(0.3)
-        comunicacao_ok = (t1 != db.reference("sensor/temperatura").get()) or (t1 is not None)
+        t_teste = db.reference("sensor/temperatura").get()
+        time.sleep(0.2)
+        comunicacao_ok = (t_teste is not None)
     except: comunicacao_ok = False
 
     conteudo = st.container()
@@ -113,11 +127,11 @@ else:
             if c1.button("LIGAR"):
                 db.reference("controle/led").set("ON")
                 registrar_acao(st.session_state["user_nome"], "LIGOU O EQUIPAMENTO")
-                st.success("Comando LIGAR enviado.")
+                st.success("LIGAR enviado.")
             if c2.button("DESLIGAR"):
                 db.reference("controle/led").set("OFF")
                 registrar_acao(st.session_state["user_nome"], "DESLIGOU O EQUIPAMENTO")
-                st.warning("Comando DESLIGAR enviado.")
+                st.warning("DESLIGAR enviado.")
 
     # --- TELA 2: MEDIÇÃO ---
     elif menu == "🌡️ Medição":
@@ -125,53 +139,50 @@ else:
             st.header("🌡️ Monitoramento")
             t = db.reference("sensor/temperatura").get() or 0
             u = db.reference("sensor/umidade").get() or 0
-            col_t, col_u = st.columns(2)
-            col_t.metric("Temperatura", f"{t} °C")
-            col_u.metric("Umidade", f"{u} %")
-            time.sleep(2)
+            st.metric("Temperatura", f"{t} °C")
+            st.metric("Umidade", f"{u} %")
+            time.sleep(3)
             st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (COM TABELA DE AÇÕES) ---
+    # --- TELA 3: RELATÓRIOS (EXIBE AÇÕES NA TELA) ---
     elif menu == "📊 Relatórios":
         with conteudo:
-            st.header("📊 Histórico de Ações e Relatórios")
-            
-            # Exibir Tabela de Logs do Firebase
-            st.subheader("📋 Log de Atividades Recentes")
+            st.header("📊 Histórico de Ações")
             try:
-                dados_logs = db.reference("logs_acoes").get()
-                if dados_logs:
-                    df = pd.DataFrame(dados_logs.values())
-                    df = df[['horario', 'usuario', 'acao']].sort_index(ascending=False)
-                    st.table(df.head(10)) # Mostra as últimas 10 ações
+                dados = db.reference("logs_acoes").get()
+                if dados:
+                    # Converte os logs do Firebase para uma tabela limpa
+                    lista_logs = list(dados.values())
+                    df = pd.DataFrame(lista_logs)
+                    # Reorganiza as colunas e mostra as mais recentes primeiro
+                    df = df[['horario', 'usuario', 'acao']].iloc[::-1]
+                    st.table(df.head(15))
                 else:
-                    st.info("Nenhuma ação registrada ainda.")
-            except:
-                st.error("Erro ao carregar histórico.")
+                    st.info("Nenhum registro encontrado.")
+            except: st.error("Erro ao carregar logs.")
 
-            if st.button("ENVIAR STATUS ATUAL POR E-MAIL"):
-                registrar_acao(st.session_state["user_nome"], "RELATÓRIO MANUAL SOLICITADO")
-                st.success("Relatório enviado!")
+            if st.button("ENVIAR E-MAIL MANUAL"):
+                registrar_acao(st.session_state["user_nome"], "RELATÓRIO MANUAL")
 
     # --- TELA 4: CADASTRO ---
     elif menu == "👥 Cadastro":
         with conteudo:
-            st.header("👥 Gestão de Usuários")
-            st.text_input("Novo Operador")
+            st.header("👥 Usuários")
+            st.text_input("Nome do Operador")
             st.button("Salvar")
 
     # --- TELA 5: DIAGNÓSTICO ---
     elif menu == "🛠️ Diagnóstico":
         with conteudo:
-            st.header("🛠️ Diagnóstico de Conexão")
+            st.header("🛠️ Diagnóstico")
             if comunicacao_ok:
-                st.markdown("<div class='status-online'>ESTATUS: COMUNICAÇÃO OK</div>", unsafe_allow_html=True)
+                st.markdown("<div class='status-online'>COMUNICAÇÃO OK</div>", unsafe_allow_html=True)
             else:
-                st.markdown("<div class='status-offline'>ESTATUS: FALHA DE COMUNICAÇÃO</div>", unsafe_allow_html=True)
+                st.markdown("<div class='status-offline'>FALHA DE COMUNICAÇÃO</div>", unsafe_allow_html=True)
             
-            if st.button("REINICIAR ESP32"):
+            if st.button("RESETAR ESP32"):
                 db.reference("controle/restart").set(True)
-                registrar_acao(st.session_state["user_nome"], "REINICIOU O HARDWARE")
+                registrar_acao(st.session_state["user_nome"], "RESET DE HARDWARE")
 
 st.markdown("---")
-st.caption("ASB AUTOMAÇÃO INDUSTRIAL - v3.5")
+st.caption("ASB AUTOMAÇÃO INDUSTRIAL - v3.6")
