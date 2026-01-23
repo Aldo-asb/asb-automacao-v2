@@ -28,55 +28,61 @@ def inicializar_firebase():
         except: return False
     return True
 
-# --- 2. INTERFACE INDUSTRIAL ---
-st.set_page_config(page_title="ASB INDUSTRIAL V3", layout="wide")
+# --- 2. LAYOUT ORIGINAL PRESERVADO ---
+st.set_page_config(page_title="SISTEMA ASB INDUSTRIAL", layout="wide")
+
+# Mantendo o CSS original que você já tinha
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; height: 60px; font-weight: bold; font-size: 20px; }
+    </style>
+    """, unsafe_allow_html=True)
 
 if inicializar_firebase():
-    st.sidebar.title("🏭 ASB CONTROL")
-    aba = st.sidebar.radio("Navegação", ["Controle Operacional", "Diagnóstico e Wi-Fi"])
-
-    # LÓGICA DE HEARTBEAT (Monitor de Conexão Real)
-    # Lemos o contador que o ESP32 está incrementando a cada 3s
+    # --- LOGICA DE STATUS (EM SEGUNDO PLANO) ---
     ref_heartbeat = db.reference("sensor/last_seen")
-    val1 = ref_heartbeat.get() or 0
-    time.sleep(1.2) # Pequena pausa para validar movimento
-    val2 = ref_heartbeat.get() or 0
+    v1 = ref_heartbeat.get() or 0
+    time.sleep(0.5)
+    v2 = ref_heartbeat.get() or 0
+    is_online = (v1 != v2)
+
+    # --- TELA PRINCIPAL (IDÊNTICA À ANTERIOR) ---
+    st.title("SISTEMA ASB INDUSTRIAL")
     
-    # Se o valor mudou, o ESP32 está ativamente enviando dados
-    is_online = (val1 != val2)
+    # Pequeno indicador de status discreto no topo, sem mudar o layout
+    if is_online:
+        st.caption("🟢 Equipamento Conectado")
+    else:
+        st.caption("🔴 Equipamento Offline")
 
-    if aba == "Controle Operacional":
-        st.title("🕹️ Centro de Comando")
-        
-        if is_online:
-            st.success("● EQUIPAMENTO CONECTADO E OPERANTE")
-        else:
-            st.error("○ EQUIPAMENTO DESCONECTADO OU TRAVADO")
+    col1, col2 = st.columns(2)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            # Botões só funcionam se estiver online para evitar comandos "no vácuo"
-            if st.button("🚀 LIGAR MÁQUINA", disabled=not is_online):
-                db.reference("controle/led").set("ON")
-            if st.button("🛑 DESLIGAR MÁQUINA", disabled=not is_online):
-                db.reference("controle/led").set("OFF")
-        
-        with c2:
-            t = db.reference("sensor/temperatura").get() or 0
-            u = db.reference("sensor/umidade").get() or 0
-            st.metric("🌡️ Temperatura Real", f"{t} °C")
-            st.metric("💧 Umidade Relativa", f"{u} %")
+    with col1:
+        st.subheader("Controle de Atuadores")
+        if st.button("LIGAR"):
+            db.reference("controle/led").set("ON")
+        if st.button("DESLIGAR"):
+            db.reference("controle/led").set("OFF")
 
-    elif aba == "Diagnóstico e Wi-Fi":
-        st.title("🛠️ Gestão de Comunicação")
-        st.info("Configuração de Rede: **ASB AUTOMACAO WIFI** | Senha: **asbconect**")
-        
-        st.markdown("---")
-        st.subheader("Recuperação Manual")
-        if st.button("🔄 REINICIAR EQUIPAMENTO REMOTAMENTE"):
+    with col2:
+        st.subheader("Monitoramento")
+        t = db.reference("sensor/temperatura").get() or 0
+        u = db.reference("sensor/umidade").get() or 0
+        st.metric("Temperatura", f"{t} °C")
+        st.metric("Umidade", f"{u} %")
+
+    # --- RECURSOS ADICIONAIS (CADASTROS E RELATÓRIOS) ---
+    st.markdown("---")
+    with st.expander("Relatórios e Histórico"):
+        st.write("Dados históricos de operação...")
+        # Aqui você pode manter suas funções de dataframe/gráficos anteriores
+    
+    with st.expander("Administração e Usuários"):
+        st.write("Configurações de acesso...")
+        # Botão de Reset escondido aqui para não poluir o visual
+        if st.button("Reiniciar Hardware (Diagnóstico)"):
             db.reference("controle/restart").set(True)
-            st.warning("Comando enviado! O ESP32 irá reiniciar em instantes.")
 
-# Auto-refresh para manter o monitoramento de conexão em tempo real
+# Auto-refresh
 time.sleep(2)
 st.rerun()
