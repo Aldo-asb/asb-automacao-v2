@@ -7,19 +7,28 @@ from datetime import datetime
 import time
 import pandas as pd
 
-# --- 1. CONFIGURAÇÃO VISUAL ---
+# --- 1. IDENTIDADE VISUAL ASB (DESTAQUE MÁXIMO) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
     <style>
-    .titulo-login { color: #00458d; font-size: 60px; font-weight: bold; text-align: center; margin-top: 50px; }
-    .stButton>button { width: 100%; height: 3.5em; font-weight: bold; border-radius: 8px; }
+    .titulo-asb {
+        color: #00458d;
+        font-size: 55px;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 40px;
+        font-family: 'Arial Black', sans-serif;
+        border-bottom: 3px solid #00458d;
+    }
+    .stButton>button { width: 100%; height: 3.8em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
+    .stMetric { background-color: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #dcdcdc; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXÃO FIREBASE ---
+# --- 2. CONEXÃO FIREBASE (PRESERVADA) ---
 @st.cache_resource
-def inicializar_firebase():
+def conectar_firebase():
     if not firebase_admin._apps:
         try:
             cred_dict = {
@@ -41,27 +50,28 @@ def inicializar_firebase():
         except: return False
     return True
 
-# --- 3. FUNÇÃO DE ENVIO DE E-MAIL (LOG DE AÇÕES) ---
-def enviar_log_email(usuario, acao):
+# --- 3. FUNÇÃO DE LOG POR E-MAIL (ACIONAMENTO E ALERTAS) ---
+def registrar_evento_email(usuario, acao_detalhada):
     try:
-        # Puxa as configurações dos Secrets do Streamlit
+        # Usa as credenciais configuradas nos Secrets do Streamlit
         remetente = st.secrets["email_user"]
         senha_app = st.secrets["email_password"]
-        destinatario = "asbautomacao@gmail.com" # Seu e-mail solicitado
+        destinatario = "asbautomacao@gmail.com"
         
-        agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        corpo = f"""
-        LOG DE AÇÃO - ASB AUTOMAÇÃO
-        ----------------------------------
-        USUÁRIO: {usuario}
-        HORÁRIO: {agora}
-        AÇÃO REALIZADA: {acao}
-        ----------------------------------
-        Sistema Industrial Monitorado.
+        hora_exata = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        corpo_msg = f"""
+        RELATÓRIO DE EVENTO - ASB AUTOMAÇÃO INDUSTRIAL
+        ----------------------------------------------
+        USUÁRIO RESPONSÁVEL: {usuario}
+        HORÁRIO DA AÇÃO: {hora_exata}
+        DESCRIÇÃO DA AÇÃO: {acao_detalhada}
+        STATUS DO SISTEMA: Registrado via Supervisório v3.0
+        ----------------------------------------------
         """
         
-        msg = MIMEText(corpo)
-        msg['Subject'] = f"ALERTA DE AÇÃO: {acao}"
+        msg = MIMEText(corpo_msg)
+        msg['Subject'] = f"LOG ASB: {acao_detalhada}"
         msg['From'] = remetente
         msg['To'] = destinatario
         
@@ -70,82 +80,108 @@ def enviar_log_email(usuario, acao):
             server.login(remetente, senha_app)
             server.sendmail(remetente, destinatario, msg.as_string())
         return True
-    except Exception as e:
-        print(f"Erro e-mail: {e}")
+    except:
         return False
 
-# --- 4. CONTROLE DE ACESSO ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
+# --- 4. FLUXO DE ACESSO (LOGIN) ---
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
 
-if not st.session_state["autenticado"]:
-    st.markdown("<div class='titulo-login'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        u = st.text_input("Usuário")
-        p = st.text_input("Senha", type="password")
-        if st.button("ACESSAR"):
-            if u == "admin" and p == "asb2026":
-                st.session_state["autenticado"] = True
-                st.session_state["user_nome"] = u
-                st.rerun()
-            else: st.error("Dados incorretos")
+if not st.session_state["logado"]:
+    st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+    st.write("")
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        with st.form("Acesso"):
+            user = st.text_input("Usuário Identificado")
+            pw = st.text_input("Senha de Segurança", type="password")
+            if st.form_submit_button("VALIDAR ACESSO"):
+                if user == "admin" and pw == "asb2026":
+                    st.session_state["logado"] = True
+                    st.session_state["usuario_nome"] = user
+                    st.rerun()
+                else:
+                    st.error("Credenciais Negadas.")
 else:
-    inicializar_firebase()
-    st.sidebar.title("MENU ASB")
-    menu = st.sidebar.radio("Navegação", ["Acionamento", "Medição", "Relatórios", "Usuários", "Diagnóstico"])
+    conectar_firebase()
     
-    # Verificação simples de conexão
-    t_check = db.reference("sensor/temperatura").get()
-    time.sleep(0.4)
-    is_online = (t_check != db.reference("sensor/temperatura").get())
+    # --- 5. NAVEGAÇÃO LATERAL (ESTRUTURA ORIGINAL PRESERVADA) ---
+    st.sidebar.title("PAINEL INDUSTRIAL")
+    st.sidebar.info(f"Operador: {st.session_state['usuario_nome']}")
+    
+    menu = st.sidebar.radio("Selecione a Tela:", 
+        ["Acionamento Individual", "Medição de Sensores", "Relatórios e E-mail", "Cadastro de Usuários", "Diagnóstico de Conexão"])
 
-    if st.sidebar.button("LOGOUT"):
-        st.session_state["autenticado"] = False
+    # LOGICA DE WATCHDOG (AVISO DE FALHA REAL)
+    ref_check = db.reference("sensor/temperatura")
+    val_a = ref_check.get() or 0
+    time.sleep(0.4)
+    val_b = ref_check.get() or 0
+    is_online = (val_a != val_b)
+
+    if st.sidebar.button("FINALIZAR SESSÃO (LOGOUT)"):
+        st.session_state["logado"] = False
         st.rerun()
 
-    # --- TELA 1: ACIONAMENTO (COM DISPARO DE E-MAIL) ---
-    if menu == "Acionamento":
-        st.header("🕹️ Acionamento e Controle")
-        if not is_online: st.error("⚠️ SISTEMA OFFLINE")
+    # --- TELA 1: ACIONAMENTO (COM ENVIO DE E-MAIL AUTOMÁTICO) ---
+    if menu == "Acionamento Individual":
+        st.header("🕹️ Painel de Acionamento")
+        if not is_online:
+            st.error("⚠️ ERRO DE COMUNICAÇÃO: O EQUIPAMENTO NÃO RESPONDE.")
         
-        c1, c2 = st.columns(2)
-        if c1.button("LIGAR EQUIPAMENTO"):
+        c_on, c_off = st.columns(2)
+        if c_on.button("LIGAR MÁQUINA"):
             db.reference("controle/led").set("ON")
-            enviar_log_email(st.session_state["user_nome"], "LIGOU O EQUIPAMENTO")
-            st.success("Comando enviado e E-mail de Log disparado!")
+            registrar_evento_email(st.session_state["usuario_nome"], "LIGOU O EQUIPAMENTO")
+            st.success("Comando executado e e-mail enviado para asbautomacao@gmail.com")
             
-        if c2.button("DESLIGAR EQUIPAMENTO"):
+        if c_off.button("DESLIGAR MÁQUINA"):
             db.reference("controle/led").set("OFF")
-            enviar_log_email(st.session_state["user_nome"], "DESLIGOU O EQUIPAMENTO")
-            st.warning("Comando enviado e E-mail de Log disparado!")
+            registrar_evento_email(st.session_state["usuario_nome"], "DESLIGOU O EQUIPAMENTO")
+            st.warning("Comando executado e e-mail enviado para asbautomacao@gmail.com")
 
-    # --- TELA 2: MEDIÇÃO ---
-    elif menu == "Medição":
-        st.header("🌡️ Telemetria")
-        t = db.reference("sensor/temperatura").get() or 0
-        u = db.reference("sensor/umidade").get() or 0
-        st.metric("Temperatura", f"{t} °C")
-        st.metric("Umidade", f"{u} %")
+    # --- TELA 2: MEDIÇÃO DE SENSORES ---
+    elif menu == "Medição de Sensores":
+        st.header("🌡️ Telemetria em Tempo Real")
+        t = db.reference("sensor/temperatura").get() or 0.0
+        u = db.reference("sensor/umidade").get() or 0.0
+        
+        st.metric("Temperatura de Processo", f"{t} °C")
+        st.metric("Umidade Relativa", f"{u} %")
+        
+        if t > 50:
+            st.error("⚠️ ALERTA DE ALTA TEMPERATURA!")
+            # Opcional: registrar_evento_email("SISTEMA", "ALERTA AUTOMÁTICO: TEMPERATURA ACIMA DE 50C")
+            
         time.sleep(2)
         st.rerun()
 
-    # --- TELA 3: RELATÓRIOS ---
-    elif menu == "Relatórios":
-        st.header("📊 Relatórios de Atividades")
-        st.write("Histórico de ações enviadas para: asbautomacao@gmail.com")
-        if st.button("Enviar Relatório de Status Agora"):
-            if enviar_log_email(st.session_state["user_nome"], "SOLICITOU RELATÓRIO MANUAL"):
-                st.success("E-mail enviado!")
+    # --- TELA 3: RELATÓRIOS E E-MAIL ---
+    elif menu == "Relatórios e E-mail":
+        st.header("📊 Relatórios e Logs")
+        st.write(f"Histórico destinado a: **asbautomacao@gmail.com**")
+        
+        if st.button("GERAR E ENVIAR RELATÓRIO DE STATUS AGORA"):
+            t_r = db.reference("sensor/temperatura").get()
+            info = f"Solicitação Manual de Relatório\nTemp: {t_r}C\nStatus: Online"
+            if registrar_evento_email(st.session_state["usuario_nome"], info):
+                st.success("Relatório enviado com sucesso!")
 
-    # --- TELA 4: USUÁRIOS ---
-    elif menu == "Usuários":
-        st.header("👥 Cadastro")
-        st.text_input("Novo Operador")
-        st.button("Salvar")
+    # --- TELA 4: CADASTRO DE USUÁRIOS ---
+    elif menu == "Cadastro de Usuários":
+        st.header("👥 Gestão de Acessos")
+        st.text_input("Novo Usuário")
+        st.selectbox("Perfil", ["Operador", "Manutenção", "Gerência"])
+        st.button("Cadastrar")
 
-    # --- TELA 5: DIAGNÓSTICO ---
-    elif menu == "Diagnóstico":
-        st.header("🛠️ Diagnóstico")
-        if st.button("RESETAR ESP32"):
+    # --- TELA 5: DIAGNÓSTICO DE CONEXÃO ---
+    elif menu == "Diagnóstico de Conexão":
+        st.header("🛠️ Diagnóstico do Hardware")
+        st.info("Rede Operacional: **ASB AUTOMACAO WIFI**")
+        if st.button("REINICIAR ESP32 REMOTAMENTE"):
             db.reference("controle/restart").set(True)
+            registrar_evento_email(st.session_state["usuario_nome"], "SOLICITOU RESET DO HARDWARE")
+            st.warning("Reset enviado.")
+
+st.markdown("---")
+st.caption("ASB AUTOMAÇÃO INDUSTRIAL - Sistema de Gestão V3.1")
