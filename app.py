@@ -4,7 +4,6 @@ from firebase_admin import credentials, db
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
-import time
 import pandas as pd
 
 # --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
@@ -44,7 +43,6 @@ def registrar_evento(acao, manual=False):
     agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
-        # O e-mail agora respeita o toggle lateral ou se for um envio manual solicitado
         if st.session_state.get("email_ativo", True) or manual:
             remetente = st.secrets.get("email_user")
             senha = st.secrets.get("email_password")
@@ -63,6 +61,7 @@ def registrar_evento(acao, manual=False):
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
+if "click_status" not in st.session_state: st.session_state["click_status"] = None
 
 if not st.session_state["logado"]:
     conectar_firebase()
@@ -91,7 +90,6 @@ if not st.session_state["logado"]:
                 if not sucesso: st.error("Usuário ou senha incorretos.")
 else:
     conectar_firebase()
-    
     opcoes_menu = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
     if st.session_state["is_admin"]:
         opcoes_menu.append("Gestão de Usuários")
@@ -102,29 +100,31 @@ else:
     if st.sidebar.button("SAIR"):
         st.session_state["logado"] = False
         st.session_state["is_admin"] = False
+        st.session_state["click_status"] = None
         st.rerun()
 
-    # --- TELA 1: ACIONAMENTO (MELHORIA: STATUS NO BOTÃO) ---
+    # --- TELA 1: ACIONAMENTO ---
     if menu == "Acionamento":
         st.header("🕹️ Controle Operacional")
-        # Lê o status real do banco para exibir a bolinha no botão correto
-        status_atual = db.reference("controle/led").get()
-        
         c1, c2 = st.columns(2)
+        status_sessao = st.session_state["click_status"]
+        
         with c1:
-            label_ligar = f"LIGAR {'🟢' if status_atual == 'ON' else '⚪'}"
+            label_ligar = f"LIGAR {'🟢' if status_sessao == 'ON' else '⚪'}"
             if st.button(label_ligar):
                 db.reference("controle/led").set("ON")
+                st.session_state["click_status"] = "ON"
                 registrar_evento("LIGOU EQUIPAMENTO")
                 st.rerun()
         with c2:
-            label_desligar = f"DESLIGAR {'🔴' if status_atual == 'OFF' else '⚪'}"
+            label_desligar = f"DESLIGAR {'🔴' if status_sessao == 'OFF' else '⚪'}"
             if st.button(label_desligar):
                 db.reference("controle/led").set("OFF")
+                st.session_state["click_status"] = "OFF"
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (MELHORIA: ADIÇÃO DE UMIDADE) ---
+    # --- TELA 2: MEDIÇÃO (ETAPA: BOTÃO DE ATUALIZAÇÃO) ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
@@ -134,22 +134,22 @@ else:
         col_t.metric("Temperatura", f"{t} °C")
         col_u.metric("Umidade", f"{u} %")
         
-        time.sleep(2)
-        st.rerun()
+        st.markdown("---")
+        if st.button("🔄 ATUALIZAR LEITURA"):
+            st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (MELHORIA: BOTÃO DE ENVIO MANUAL) ---
+    # --- TELA 3: RELATÓRIOS ---
     elif menu == "Relatórios":
         st.header("📊 Histórico")
-        if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL AGORA"):
+        if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL"):
             registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
-            st.success("E-mail enviado com sucesso!")
-
+            st.success("E-mail enviado!")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(10))
 
-    # --- TELA 4: DIAGNÓSTICO (PRESERVADA) ---
+    # --- TELA 4: DIAGNÓSTICO ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
         status = db.reference("sensor/temperatura").get()
@@ -162,31 +162,29 @@ else:
             db.reference("controle/restart").set(True)
             registrar_evento("RESET REMOTO")
 
-    # --- TELA 5: GESTÃO DE USUÁRIOS (PRESERVADA) ---
+    # --- TELA 5: GESTÃO DE USUÁRIOS ---
     elif menu == "Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("👥 Cadastro de Novos Operadores")
+            st.header("👥 Cadastro de Operadores")
             with st.form("form_cadastro"):
                 nome_novo = st.text_input("Nome Completo")
-                login_novo = st.text_input("Login (Usuário)")
-                senha_nova = st.text_input("Senha de Acesso", type="password")
-                btn_cadastrar = st.form_submit_button("CADASTRAR OPERADOR")
-                
-                if btn_cadastrar:
+                login_novo = st.text_input("Login")
+                senha_nova = st.text_input("Senha", type="password")
+                if st.form_submit_button("CADASTRAR"):
                     if nome_novo and login_novo and senha_nova:
                         db.reference("usuarios_autorizados").push({
                             "nome": nome_novo, "login": login_novo, "senha": senha_nova,
                             "data_criacao": datetime.now().strftime('%d/%m/%Y')
                         })
                         st.success(f"Operador {nome_novo} cadastrado!")
-                        registrar_evento(f"CADASTROU USUÁRIO: {login_novo}")
-                    else: st.warning("Preencha todos os campos.")
-
-            st.markdown("---")
+            
             st.subheader("Operadores Cadastrados")
             lista_users = db.reference("usuarios_autorizados").get()
             if lista_users:
                 for key, val in lista_users.items():
-                    st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val['nome']} | <b>Login:</b> {val['login']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.1
+# ASB AUTOMAÇÃO INDUSTRIAL - v6.3
+
+Ok, vou me lembrar disso. Você pode me pedir para esquecer dados específicos a qualquer momento ou gerenciar as informações que eu salvei. É só acessar [suas configurações](https://gemini.google.com/saved-info).
+http://googleusercontent.com/memory_tool_content/19
