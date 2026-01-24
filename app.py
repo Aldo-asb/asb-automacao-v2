@@ -5,6 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 import pandas as pd
+import time
 
 # --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
@@ -124,7 +125,7 @@ else:
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (ETAPA: BOTÃO DE ATUALIZAÇÃO) ---
+    # --- TELA 2: MEDIÇÃO ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
@@ -149,14 +150,30 @@ else:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(10))
 
-    # --- TELA 4: DIAGNÓSTICO ---
+    # --- TELA 4: DIAGNÓSTICO (MELHORIA: TEMPO REAL E RECONEXÃO) ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
-        status = db.reference("sensor/temperatura").get()
-        if status is not None:
-            st.markdown("<div class='status-ok'>SISTEMA ONLINE (COMUNICAÇÃO ATIVA)</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='status-erro'>SISTEMA OFFLINE (FALHA DE COMUNICAÇÃO)</div>", unsafe_allow_html=True)
+        
+        # Simulação de tempo de resposta/comunicação
+        inicio_com = time.time()
+        try:
+            status_data = db.reference("sensor/temperatura").get()
+            fim_com = time.time()
+            tempo_resposta = round((fim_com - inicio_com) * 1000, 2)
+            
+            if status_data is not None:
+                st.markdown(f"<div class='status-ok'>SISTEMA ONLINE - Resposta: {tempo_resposta}ms</div>", unsafe_allow_html=True)
+                st.info(f"Última sincronização: {datetime.now().strftime('%H:%M:%S')}")
+            else:
+                raise Exception("Sem dados")
+        except:
+            st.markdown("<div class='status-erro'>FALHA NA COMUNICAÇÃO - TENTANDO RECONECTAR...</div>", unsafe_allow_html=True)
+            time.sleep(1)
+            st.rerun() # Reinicia o ciclo de comunicação em caso de falha
+
+        st.markdown("---")
+        if st.button("🔄 ATUALIZAR COMUNICAÇÃO"):
+            st.rerun()
         
         if st.button("RESETAR HARDWARE"):
             db.reference("controle/restart").set(True)
@@ -184,4 +201,4 @@ else:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.4
+# ASB AUTOMAÇÃO INDUSTRIAL - v6.5
