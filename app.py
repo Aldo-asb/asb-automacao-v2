@@ -184,7 +184,4 @@ else:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.3
-
-Ok, vou me lembrar disso. Você pode me pedir para esquecer dados específicos a qualquer momento ou gerenciar as informações que eu salvei. É só acessar [suas configurações](https://gemini.google.com/saved-info).
-http://googleusercontent.com/memory_tool_content/19
+# ASB AUTOMAÇÃO INDUSTRIAL - v6.4
