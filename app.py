@@ -7,7 +7,7 @@ from datetime import datetime
 import time
 import pandas as pd
 
-# --- 1. CONFIGURAÇÃO VISUAL (MANTIDA INTACTA) ---
+# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -15,6 +15,8 @@ st.markdown("""
     .titulo-asb { color: #00458d; font-size: 55px; font-weight: bold; text-align: center; margin-top: 40px; border-bottom: 3px solid #00458d; }
     .stButton>button { width: 100%; height: 3.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
     .card-usuario { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #00458d; }
+    .status-ok { color: #28a745; font-weight: bold; padding: 10px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; }
+    .status-erro { color: #dc3545; font-weight: bold; padding: 10px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -87,8 +89,8 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # FILTRO DE MENU: Novos usuários não veem "Gestão de Usuários"
-    opcoes_menu = ["Acionamento", "Medição", "Relatórios"]
+    # LISTA DE OPÇÕES (Diagnóstico restaurado para todos)
+    opcoes_menu = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
     if st.session_state["is_admin"]:
         opcoes_menu.append("Gestão de Usuários")
     
@@ -126,7 +128,20 @@ else:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(10))
 
-    # --- TELA 4: GESTÃO DE USUÁRIOS (RESTRITA AO ADMIN) ---
+    # --- TELA 4: DIAGNÓSTICO (RESTAURADA) ---
+    elif menu == "Diagnóstico":
+        st.header("🛠️ Status de Comunicação")
+        status = db.reference("sensor/temperatura").get()
+        if status is not None:
+            st.markdown("<div class='status-ok'>ESP32 CONECTADO</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='status-erro'>ESP32 DESCONECTADO</div>", unsafe_allow_html=True)
+        
+        if st.button("RESETAR HARDWARE"):
+            db.reference("controle/restart").set(True)
+            registrar_evento("RESET REMOTO")
+
+    # --- TELA 5: GESTÃO DE USUÁRIOS (RESTRITA) ---
     elif menu == "Gestão de Usuários":
         if st.session_state["is_admin"]:
             st.header("👥 Cadastro de Novos Operadores")
@@ -153,4 +168,4 @@ else:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val['nome']} | <b>Login:</b> {val['login']}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v4.3
+# ASB AUTOMAÇÃO INDUSTRIAL - v4.4
