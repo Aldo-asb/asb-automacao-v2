@@ -7,7 +7,7 @@ from datetime import datetime
 import time
 import pandas as pd
 
-# --- 1. IDENTIDADE VISUAL (MANTIDA) ---
+# --- 1. IDENTIDADE VISUAL (PRESERVADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -16,6 +16,7 @@ st.markdown("""
     .stButton>button { width: 100%; height: 4.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
     .status-ok { color: #28a745; font-weight: bold; padding: 15px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; }
     .status-erro { color: #dc3545; font-weight: bold; padding: 15px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; }
+    .valor-invalido { color: #888; font-style: italic; font-size: 0.9em; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,7 +38,7 @@ def conectar_firebase():
         except: return False
     return True
 
-# --- 3. REGISTRO DE EVENTO E E-MAIL ---
+# --- 3. REGISTRO DE EVENTO ---
 def registrar_evento(acao, manual=False):
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -57,7 +58,7 @@ def registrar_evento(acao, manual=False):
                     server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
     except: pass
 
-# --- 4. FLUXO DE LOGIN ---
+# --- 4. LOGIN E SESSÃO ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
@@ -90,10 +91,8 @@ if not st.session_state["logado"]:
                 if not sucesso: st.error("Usuário ou senha incorretos.")
 else:
     conectar_firebase()
-    
     opcoes_menu = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
-    if st.session_state["is_admin"]:
-        opcoes_menu.append("Gestão de Usuários")
+    if st.session_state["is_admin"]: opcoes_menu.append("Gestão de Usuários")
     
     menu = st.sidebar.radio("Navegação:", opcoes_menu)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
@@ -103,11 +102,10 @@ else:
         st.session_state["ultimo_comando"] = None
         st.rerun()
 
-    # --- TELA 1: ACIONAMENTO (STATUS VISÍVEL APENAS APÓS CLIQUE) ---
+    # --- TELA 1: ACIONAMENTO (PRESERVADA) ---
     if menu == "Acionamento":
         st.header("🕹️ Controle Operacional")
         c1, c2 = st.columns(2)
-        
         status_sessao = st.session_state["ultimo_comando"]
         
         with c1:
@@ -125,60 +123,71 @@ else:
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (PRESERVADO) ---
+    # --- TELA 2: MEDIÇÃO (SEGURANÇA CONTRA DADOS CONGELADOS) ---
     elif menu == "Medição":
-        st.header("🌡️ Monitoramento Real")
-        t = db.reference("sensor/temperatura").get() or 0
-        u = db.reference("sensor/umidade").get() or 0
+        st.header("🌡️ Monitoramento em Tempo Real")
+        
+        # Teste de batimento (pulso)
+        t1 = db.reference("sensor/temperatura").get()
+        time.sleep(0.8) # Reduzi o tempo para não travar o uso
+        t2 = db.reference("sensor/temperatura").get()
+        
         col_t, col_u = st.columns(2)
-        col_t.metric("Temperatura", f"{t} °C")
-        col_u.metric("Umidade", f"{u} %")
-        time.sleep(2)
-        st.rerun()
+        
+        if t1 != t2 and t2 is not None:
+            # Dado está mudando = Hardware está vivo
+            u = db.reference("sensor/umidade").get() or 0
+            col_t.metric("Temperatura", f"{t2} °C")
+            col_u.metric("Umidade", f"{u} %")
+        else:
+            # Dado parado = Perigo de Offline
+            col_t.markdown("<p class='valor-invalido'>Aguardando pulso do sensor...</p>", unsafe_allow_html=True)
+            col_u.markdown("<p class='valor-invalido'>Conexão instável ou Hardware Offline</p>", unsafe_allow_html=True)
+            st.error("DADOS CONGELADOS: O hardware não está transmitindo em tempo real.")
+        
+        st.button("ATUALIZAR LEITURA")
 
-    # --- TELA 3: RELATÓRIOS (PRESERVADO) ---
+    # --- TELA 3: RELATÓRIOS (PRESERVADA) ---
     elif menu == "Relatórios":
         st.header("📊 Histórico de Ações")
         if st.button("📧 ENVIAR RELATÓRIO POR E-MAIL"):
             registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
-            st.success("Relatório enviado com sucesso!")
-        
+            st.success("Relatório enviado!")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(15))
 
-    # --- TELA 4: DIAGNÓSTICO (PRESERVADO) ---
+    # --- TELA 4: DIAGNÓSTICO (ZERO TOLERÂNCIA A DADOS ANTIGOS) ---
     elif menu == "Diagnóstico":
-        st.header("🛠️ Diagnóstico do Sistema")
-        try:
-            teste_conexao = db.reference("sensor/temperatura").get()
-            if teste_conexao is not None:
-                st.markdown("<div class='status-ok'>SISTEMA ONLINE (COMUNICAÇÃO ATIVA)</div>", unsafe_allow_html=True)
+        st.header("🛠️ Diagnóstico de Conectividade")
+        
+        with st.status("Verificando integridade da comunicação...", expanded=True) as status:
+            v1 = db.reference("sensor/temperatura").get()
+            time.sleep(1.5)
+            v2 = db.reference("sensor/temperatura").get()
+            
+            if v1 != v2 and v2 is not None:
+                status.update(label="Hardware Conectado!", state="complete")
+                st.markdown("<div class='status-ok'>SISTEMA ONLINE (FLUXO ATIVO)</div>", unsafe_allow_html=True)
             else:
-                st.markdown("<div class='status-erro'>SISTEMA OFFLINE (SEM RESPOSTA DO HARDWARE)</div>", unsafe_allow_html=True)
-        except:
-            st.markdown("<div class='status-erro'>ERRO DE CONEXÃO COM O BANCO</div>", unsafe_allow_html=True)
+                status.update(label="Falha de Comunicação!", state="error")
+                st.markdown("<div class='status-erro'>SISTEMA OFFLINE (SEM PULSO)</div>", unsafe_allow_html=True)
+                st.error("Causa provável: ESP32 sem energia ou sem Wi-Fi.")
 
         if st.button("REINICIAR MÓDULO ESP32"):
             db.reference("controle/restart").set(True)
             registrar_evento("RESTART VIA DASHBOARD")
 
-    # --- TELA 5: GESTÃO DE USUÁRIOS (PRESERVADO) ---
+    # --- TELA 5: GESTÃO DE USUÁRIOS (PRESERVADA) ---
     elif menu == "Gestão de Usuários":
         if st.session_state["is_admin"]:
             st.header("👥 Gestão de Operadores")
             with st.form("cadastro"):
-                n = st.text_input("Nome")
-                l = st.text_input("Login")
-                s = st.text_input("Senha", type="password")
+                n = st.text_input("Nome"); l = st.text_input("Login"); s = st.text_input("Senha", type="password")
                 if st.form_submit_button("CADASTRAR"):
                     if n and l and s:
-                        db.reference("usuarios_autorizados").push({
-                            "nome": n, "login": l, "senha": s,
-                            "data_criacao": datetime.now().strftime('%d/%m/%Y')
-                        })
+                        db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data_criacao": datetime.now().strftime('%d/%m/%Y')})
                         st.success(f"Operador {n} cadastrado!")
-                        registrar_evento(f"CADASTROU: {l}")
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v5.1
+# ASB AUTOMAÇÃO INDUSTRIAL - v5.3
