@@ -7,9 +7,9 @@ from datetime import datetime
 import pandas as pd
 import time
 import pytz
-import urllib.parse # Para formatar o link do WhatsApp
+import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
+# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA v7.7) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -29,7 +29,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES AUXILIARES ---
+# --- 2. FUNÇÕES AUXILIARES (PRESERVADAS) ---
 def obter_hora_brasilia():
     fuso = pytz.timezone('America/Sao_Paulo')
     return datetime.now(fuso)
@@ -96,7 +96,12 @@ if not st.session_state["logado"]:
                 st.error("Dados incorretos.")
 else:
     conectar_firebase()
-    menu = st.sidebar.radio("Navegação:", ["Acionamento", "Medição", "Relatórios", "Diagnóstico"] + (["Gestão de Usuários"] if st.session_state["is_admin"] else []))
+    # Sidebar com todas as opções originais
+    menu_opcoes = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
+    if st.session_state["is_admin"]:
+        menu_opcoes.append("Gestão de Usuários")
+    
+    menu = st.sidebar.radio("Navegação:", menu_opcoes)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
     if st.sidebar.button("SAIR"): st.session_state["logado"] = False; st.rerun()
 
@@ -111,7 +116,7 @@ else:
             if st.button(f"DESLIGAR {'🔴' if st.session_state['click_status'] == 'OFF' else '⚪'}"):
                 db.reference("controle/led").set("OFF"); st.session_state["click_status"] = "OFF"; registrar_evento("DESLIGOU EQUIPAMENTO"); st.rerun()
 
-    # --- TELA 2: MEDIÇÃO ---
+    # --- TELA 2: MEDIÇÃO (GRÁFICOS SEPARADOS v7.7) ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
@@ -121,23 +126,23 @@ else:
         g1, g2 = st.columns(2)
         with g1: st.subheader("🌡️ Temperatura"); st.bar_chart(pd.DataFrame({"°C": [t]}, index=["Atual"]), color="#dc3545")
         with g2: st.subheader("💧 Umidade"); st.bar_chart(pd.DataFrame({"%": [u]}, index=["Atual"]), color="#00458d")
-        if st.button("🔄 REFRESH"): st.rerun()
+        if st.button("🔄 ATUALIZAR LEITURA"): st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (WHATSAPP + INTERAÇÃO) ---
+    # --- TELA 3: RELATÓRIOS (WHATSAPP + CHAT v7.7) ---
     elif menu == "Relatórios":
-        st.header("💬 Central de Mensagens e WhatsApp")
+        st.header("💬 Central de Mensagens")
         
-        # INTERAÇÃO WHATSAPP
         with st.expander("📲 Enviar Notificação WhatsApp", expanded=True):
-            tel = st.text_input("Número do Telefone (com DDD)", placeholder="62999999999")
-            msg_zap = st.text_area("Mensagem de Alerta", "Aviso do Sistema ASB: Tudo operando normalmente.")
-            if st.button("ENVIAR PARA WHATSAPP"):
+            tel_padrao = "62999999999" # Número padrão configurado
+            tel = st.text_input("Número do Gestor (DDD + Número)", value=tel_padrao)
+            msg_zap = st.text_area("Mensagem de Alerta", "Aviso do Sistema ASB: Verificação necessária no painel industrial.")
+            if st.button("GERAR LINK DE ENVIO"):
                 if tel and msg_zap:
                     texto_url = urllib.parse.quote(msg_zap)
-                    link = f"https://wa.me/55{tel}?text={texto_url}"
-                    st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:10px; text-align:center; border-radius:10px; font-weight:bold;">CLIQUE AQUI PARA CONFIRMAR O ENVIO</div></a>', unsafe_allow_html=True)
-                    registrar_evento(f"GEROU ALERTA WHATSAPP PARA {tel}")
-                else: st.warning("Preencha o telefone e a mensagem.")
+                    link = f"https://wa.me/{tel}?text={texto_url}"
+                    st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:15px; text-align:center; border-radius:10px; font-weight:bold; font-size:18px;">👉 CLIQUE PARA ENVIAR NO WHATSAPP</div></a>', unsafe_allow_html=True)
+                    registrar_evento(f"ALERTA WHATSAPP PARA {tel}")
+                else: st.warning("Dados incompletos.")
 
         st.markdown("---")
         logs = db.reference("historico_acoes").get()
@@ -161,4 +166,20 @@ else:
         else: st.markdown("<div class='status-erro'>SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         if st.button("RESETAR HARDWARE"): db.reference("controle/restart").set(True); registrar_evento("RESET REMOTO")
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v7.7
+    # --- TELA 5: GESTÃO DE USUÁRIOS (PRESERVADA v7.7) ---
+    elif menu == "Gestão de Usuários":
+        if st.session_state["is_admin"]:
+            st.header("👥 Gestão de Operadores")
+            with st.form("form_cadastro"):
+                n_n, l_n, s_n = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
+                if st.form_submit_button("CADASTRAR"):
+                    if n_n and l_n and s_n:
+                        db.reference("usuarios_autorizados").push({"nome": n_n, "login": l_n, "senha": s_n, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
+                        st.success("Cadastrado!"); time.sleep(1); st.rerun()
+            
+            users = db.reference("usuarios_autorizados").get()
+            if users:
+                for k, v in users.items():
+                    st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> ({v.get('login')})</div>", unsafe_allow_html=True)
+
+# ASB AUTOMAÇÃO INDUSTRIAL - v7.9
