@@ -9,23 +9,26 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA v7.7) ---
+# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA E AMPLIADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
     <style>
     .titulo-asb { color: #00458d; font-size: 55px; font-weight: bold; text-align: center; margin-top: 40px; border-bottom: 3px solid #00458d; }
+    .subtitulo-asb { color: #555; font-size: 20px; text-align: center; margin-bottom: 30px; }
     .stButton>button { width: 100%; height: 3.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
     .card-usuario { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #00458d; }
     .status-ok { color: #28a745; font-weight: bold; padding: 10px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; }
     .status-erro { color: #dc3545; font-weight: bold; padding: 10px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; }
     
+    /* ESTILO HOME PROFISSIONAL */
+    .home-card { background-color: #ffffff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #00458d; text-align: center; height: 100%; }
+    .home-icon { font-size: 40px; margin-bottom: 15px; }
+    
     .chat-container { display: flex; flex-direction: column; gap: 10px; background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
     .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; position: relative; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
     .msg-admin { align-self: flex-end; background-color: #dcf8c6; border-top-right-radius: 0; }
     .msg-user { align-self: flex-start; background-color: #ffffff; border-top-left-radius: 0; }
-    .msg-info { font-size: 12px; color: #555; font-weight: bold; }
-    .msg-hora { font-size: 10px; color: #888; text-align: right; margin-top: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -77,11 +80,12 @@ if "click_status" not in st.session_state: st.session_state["click_status"] = No
 if not st.session_state["logado"]:
     conectar_firebase()
     st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitulo-asb'>Sistemas de Supervisão IoT Avançados e Monitoramento em Tempo Real</div>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         u_input = st.text_input("Usuário")
         p_input = st.text_input("Senha", type="password")
-        if st.button("ENTRAR"):
+        if st.button("ACESSAR SISTEMA"):
             if u_input == "admin" and p_input == "asb2026":
                 st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "Admin Master", True
                 st.rerun()
@@ -93,21 +97,36 @@ if not st.session_state["logado"]:
                         if user_data['login'] == u_input and user_data['senha'] == p_input:
                             st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, user_data['nome'], False
                             st.rerun()
-                st.error("Dados incorretos.")
+                st.error("Credenciais inválidas.")
 else:
     conectar_firebase()
-    # Sidebar com todas as opções originais
-    menu_opcoes = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
+    menu_opcoes = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]:
-        menu_opcoes.append("Gestão de Usuários")
+        menu_opcoes.append("👥 Gestão de Usuários")
     
-    menu = st.sidebar.radio("Navegação:", menu_opcoes)
+    menu = st.sidebar.radio("Navegação Principal:", menu_opcoes)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
-    if st.sidebar.button("SAIR"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
+
+    # --- TELA 0: HOME PROFISSIONAL ---
+    if menu == "🏠 Home":
+        st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+        st.markdown("<div class='subtitulo-asb'>Plataforma Integrada de Gestão e Monitoramento IoT</div>", unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo de ativos industriais via nuvem com baixa latência.</p></div>""", unsafe_allow_html=True)
+        with c2:
+            st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise de Dados</h3><p>Gráficos em tempo real para tomada de decisão baseada em telemetria precisa.</p></div>""", unsafe_allow_html=True)
+        with c3:
+            st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Controle de acesso multiusuário e registros de auditoria em todos os acionamentos.</p></div>""", unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.info(f"Bem-vindo, {st.session_state['user_nome']}. O sistema está operando normalmente sob o fuso {obter_hora_brasilia().strftime('%Z')}.")
 
     # --- TELA 1: ACIONAMENTO ---
-    if menu == "Acionamento":
-        st.header("🕹️ Controle Operacional")
+    elif menu == "🕹️ Acionamento":
+        st.header("Controle de Ativos")
         c1, c2 = st.columns(2)
         with c1:
             if st.button(f"LIGAR {'🟢' if st.session_state['click_status'] == 'ON' else '⚪'}"):
@@ -116,35 +135,29 @@ else:
             if st.button(f"DESLIGAR {'🔴' if st.session_state['click_status'] == 'OFF' else '⚪'}"):
                 db.reference("controle/led").set("OFF"); st.session_state["click_status"] = "OFF"; registrar_evento("DESLIGOU EQUIPAMENTO"); st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (GRÁFICOS SEPARADOS v7.7) ---
-    elif menu == "Medição":
-        st.header("🌡️ Monitoramento")
+    # --- TELA 2: MEDIÇÃO ---
+    elif menu == "🌡️ Medição":
+        st.header("Telemetria em Tempo Real")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
         col_t, col_u = st.columns(2)
         col_t.metric("Temperatura", f"{t} °C"); col_u.metric("Umidade", f"{u} %")
-        st.markdown("---")
         g1, g2 = st.columns(2)
-        with g1: st.subheader("🌡️ Temperatura"); st.bar_chart(pd.DataFrame({"°C": [t]}, index=["Atual"]), color="#dc3545")
-        with g2: st.subheader("💧 Umidade"); st.bar_chart(pd.DataFrame({"%": [u]}, index=["Atual"]), color="#00458d")
-        if st.button("🔄 ATUALIZAR LEITURA"): st.rerun()
+        with g1: st.bar_chart(pd.DataFrame({"°C": [t]}, index=["Atual"]), color="#dc3545")
+        with g2: st.bar_chart(pd.DataFrame({"%": [u]}, index=["Atual"]), color="#00458d")
+        if st.button("🔄 REFRESH"): st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (WHATSAPP + CHAT v7.7) ---
-    elif menu == "Relatórios":
-        st.header("💬 Central de Mensagens")
-        
-        with st.expander("📲 Enviar Notificação WhatsApp", expanded=True):
-            tel_padrao = "62999999999" # Número padrão configurado
-            tel = st.text_input("Número do Gestor (DDD + Número)", value=tel_padrao)
-            msg_zap = st.text_area("Mensagem de Alerta", "Aviso do Sistema ASB: Verificação necessária no painel industrial.")
-            if st.button("GERAR LINK DE ENVIO"):
-                if tel and msg_zap:
-                    texto_url = urllib.parse.quote(msg_zap)
-                    link = f"https://wa.me/{tel}?text={texto_url}"
-                    st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:15px; text-align:center; border-radius:10px; font-weight:bold; font-size:18px;">👉 CLIQUE PARA ENVIAR NO WHATSAPP</div></a>', unsafe_allow_html=True)
-                    registrar_evento(f"ALERTA WHATSAPP PARA {tel}")
-                else: st.warning("Dados incompletos.")
+    # --- TELA 3: RELATÓRIOS (WHATSAPP + CHAT) ---
+    elif menu == "📊 Relatórios":
+        st.header("Histórico e Notificações")
+        with st.expander("📲 Enviar Notificação WhatsApp", expanded=False):
+            tel = st.text_input("Número do Gestor", value="5562999999999")
+            msg_zap = st.text_area("Mensagem", "Alerta ASB: Verifique o status do monitoramento.")
+            if st.button("GERAR LINK"):
+                texto_url = urllib.parse.quote(msg_zap)
+                link = f"https://wa.me/{tel}?text={texto_url}"
+                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:15px; text-align:center; border-radius:10px; font-weight:bold;">ENVIAR WHATSAPP</div></a>', unsafe_allow_html=True)
+                registrar_evento(f"ALERTA ZAP PARA {tel}")
 
-        st.markdown("---")
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -152,34 +165,31 @@ else:
                 val = logs[key]
                 user, acao, data = val.get("usuario", "Sistema"), val.get("acao", ""), val.get("data", "")
                 classe = "msg-admin" if user == "Admin Master" else "msg-user"
-                st.markdown(f'<div class="msg-balao {classe}"><div class="msg-info">{user}</div><div>{acao}</div><div class="msg-hora">{data}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="msg-balao {classe}"><div class="msg-info">{user}</div><div>{acao}</div><div style="font-size:10px; color:#888;">{data}</div></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        if st.button("🗑️ LIMPAR HISTÓRICO"):
-            db.reference("historico_acoes").delete(); st.rerun()
+        if st.button("🗑️ LIMPAR HISTÓRICO"): db.reference("historico_acoes").delete(); st.rerun()
 
     # --- TELA 4: DIAGNÓSTICO ---
-    elif menu == "Diagnóstico":
-        st.header("🛠️ Status")
+    elif menu == "🛠️ Diagnóstico":
+        st.header("Status do Sistema")
         if db.reference("sensor/temperatura").get() is not None:
             st.markdown("<div class='status-ok'>SISTEMA ONLINE</div>", unsafe_allow_html=True)
         else: st.markdown("<div class='status-erro'>SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         if st.button("RESETAR HARDWARE"): db.reference("controle/restart").set(True); registrar_evento("RESET REMOTO")
 
-    # --- TELA 5: GESTÃO DE USUÁRIOS (PRESERVADA v7.7) ---
-    elif menu == "Gestão de Usuários":
+    # --- TELA 5: GESTÃO DE USUÁRIOS ---
+    elif menu == "👥 Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("👥 Gestão de Operadores")
+            st.header("Cadastro de Operadores")
             with st.form("form_cadastro"):
                 n_n, l_n, s_n = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
                 if st.form_submit_button("CADASTRAR"):
                     if n_n and l_n and s_n:
                         db.reference("usuarios_autorizados").push({"nome": n_n, "login": l_n, "senha": s_n, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
-                        st.success("Cadastrado!"); time.sleep(1); st.rerun()
-            
+                        st.success("Cadastrado!"); st.rerun()
             users = db.reference("usuarios_autorizados").get()
             if users:
                 for k, v in users.items():
                     st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> ({v.get('login')})</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v7.9
+# ASB AUTOMAÇÃO INDUSTRIAL - v8.0
