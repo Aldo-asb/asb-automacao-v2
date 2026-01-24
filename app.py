@@ -29,11 +29,11 @@ st.markdown("""
     .bar-umid { height: 20px; width: 100%; background: linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius: 10px; }
     
     .chat-container { display: flex; flex-direction: column; gap: 10px; background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; }
-    .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
+    .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); background-color: #ffffff; margin-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES AUXILIARES (E-MAIL RESTAURADO) ---
+# --- 2. FUNÇÕES AUXILIARES ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
@@ -58,23 +58,14 @@ def registrar_evento(acao, manual=False):
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
-        # Registra no Firebase
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
-        
-        # LOGICA DE E-MAIL (RESTAURADA E PRESERVADA)
         if st.session_state.get("email_ativo", True) or manual:
-            remetente = st.secrets.get("email_user")
-            senha = st.secrets.get("email_password")
+            remetente, senha = st.secrets.get("email_user"), st.secrets.get("email_password")
             if remetente and senha:
                 msg = MIMEText(f"LOG ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
-                msg['Subject'] = f"SISTEMA ASB: {acao}"
-                msg['From'] = remetente
-                msg['To'] = "asbautomacao@gmail.com"
-                server = smtplib.SMTP('smtp.gmail.com', 587)
-                server.starttls()
-                server.login(remetente, senha)
-                server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
-                server.quit()
+                msg['Subject'] = f"SISTEMA ASB: {acao}"; msg['From'] = remetente; msg['To'] = "asbautomacao@gmail.com"
+                server = smtplib.SMTP('smtp.gmail.com', 587); server.starttls(); server.login(remetente, senha)
+                server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string()); server.quit()
     except: pass
 
 # --- 3. FLUXO DE LOGIN ---
@@ -114,7 +105,6 @@ else:
     # --- TELA 0: HOME v8.0 ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-        st.markdown("<div class='subtitulo-asb'>Plataforma Integrada de Gestão e Monitoramento IoT</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo via nuvem.</p></div>""", unsafe_allow_html=True)
         with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise de Dados</h3><p>Telemetria em tempo real.</p></div>""", unsafe_allow_html=True)
@@ -125,13 +115,9 @@ else:
         st.header("Controle de Ativos")
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("LIGAR"): 
-                db.reference("controle/led").set("ON"); st.session_state["click_status"] = "ON"
-                registrar_evento("LIGOU EQUIPAMENTO")
+            if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU EQUIPAMENTO")
         with c2:
-            if st.button("DESLIGAR"): 
-                db.reference("controle/led").set("OFF"); st.session_state["click_status"] = "OFF"
-                registrar_evento("DESLIGOU EQUIPAMENTO")
+            if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU EQUIPAMENTO")
 
     # --- TELA 2: MEDIÇÃO (CARDS v8.2) ---
     elif menu == "🌡️ Medição":
@@ -140,18 +126,25 @@ else:
         col1, col2 = st.columns(2)
         with col1: st.markdown(f'<div class="gauge-card"><div>Temperatura (°C)</div><div class="gauge-value">{t}</div><div class="bar-temp"></div></div>', unsafe_allow_html=True)
         with col2: st.markdown(f'<div class="gauge-card"><div>Umidade (%)</div><div class="gauge-value">{u}</div><div class="bar-umid"></div></div>', unsafe_allow_html=True)
-        if st.button("🔄 ATUALIZAR"): st.rerun()
+        if st.button("🔄 REFRESH"): st.rerun()
 
-    # --- TELA 3: RELATÓRIOS ---
+    # --- TELA 3: RELATÓRIOS (COM BOTÃO DE LIMPEZA RESTAURADO) ---
     elif menu == "📊 Relatórios":
         st.header("Histórico e Mensagens")
+        
+        col_rel1, col_rel2 = st.columns([3, 1])
+        with col_rel2:
+            if st.button("⚠️ LIMPAR HISTÓRICO"):
+                db.reference("historico_acoes").delete()
+                registrar_evento("LIMPEZA GERAL DE HISTÓRICO", manual=True)
+                st.success("Histórico apagado!"); time.sleep(1); st.rerun()
+
         with st.expander("📲 WhatsApp"):
             tel = st.text_input("Número", value="5562999999999")
-            msg = st.text_area("Mensagem", "Alerta ASB!")
+            msg_w = st.text_area("Mensagem", "Alerta ASB!")
             if st.button("GERAR LINK"):
-                st.markdown(f'<a href="https://wa.me/{tel}?text={urllib.parse.quote(msg)}" target="_blank">ENVIAR</a>', unsafe_allow_html=True)
-                registrar_evento(f"ALERTA WHATSAPP PARA {tel}")
-        
+                st.markdown(f'<a href="https://wa.me/{tel}?text={urllib.parse.quote(msg_w)}" target="_blank">ENVIAR WHATSAPP</a>', unsafe_allow_html=True)
+
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -167,26 +160,24 @@ else:
             with st.spinner("Sondando ESP32..."):
                 db.reference("sensor/temperatura").delete()
                 time.sleep(4)
-                if db.reference("sensor/temperatura").get() is not None:
-                    st.session_state["net_status"] = "ON"
+                if db.reference("sensor/temperatura").get() is not None: st.session_state["net_status"] = "ON"
                 else: st.session_state["net_status"] = "OFF"
         
         if st.session_state.get("net_status") == "ON":
             st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
-        else: st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
+        elif st.session_state.get("net_status") == "OFF":
+            st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
+        
         if st.button("REBOOT ESP32"): db.reference("controle/restart").set(True); registrar_evento("REBOOT REMOTO")
 
     # --- TELA 5: GESTÃO DE USUÁRIOS ---
     elif menu == "👥 Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("Usuários")
-            with st.form("f"):
+            st.header("Gestão de Acesso")
+            with st.form("cad_u"):
                 n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha")
-                if st.form_submit_button("Cadastrar"):
-                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
-                    st.success("OK"); st.rerun()
-            users = db.reference("usuarios_autorizados").get()
-            if users:
-                for k, v in users.items(): st.markdown(f"<div style='padding:10px; border-bottom:1px solid #ddd;'><b>{v.get('nome')}</b></div>", unsafe_allow_html=True)
+                if st.form_submit_button("Cadastrar Operador"):
+                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s})
+                    st.success("Cadastrado com sucesso!"); st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v8.6
+# ASB AUTOMAÇÃO INDUSTRIAL - v8.7
