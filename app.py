@@ -76,7 +76,7 @@ if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
 if not st.session_state["logado"]:
     conectar_firebase()
     st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitulo-asb'>Plataforma Integrada de Gestão e Monitoramento IoT</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitulo-asb'>Sistemas de Supervisão IoT e Monitoramento Industrial</div>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         u_input = st.text_input("Usuário")
@@ -98,26 +98,36 @@ else:
     conectar_firebase()
     menu_opcoes = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: menu_opcoes.append("👥 Gestão de Usuários")
-    menu = st.sidebar.radio("Navegação Principal:", menu_opcoes)
+    menu = st.sidebar.radio("Navegação:", menu_opcoes)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
-    if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Sair"): st.session_state["logado"] = False; st.rerun()
 
     # --- TELA 0: HOME v8.0 ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo via nuvem.</p></div>""", unsafe_allow_html=True)
-        with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise de Dados</h3><p>Telemetria em tempo real.</p></div>""", unsafe_allow_html=True)
-        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Controle de acesso e auditoria.</p></div>""", unsafe_allow_html=True)
+        with c1: st.markdown("<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo.</p></div>", unsafe_allow_html=True)
+        with c2: st.markdown("<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Dados em tempo real.</p></div>", unsafe_allow_html=True)
+        with c3: st.markdown("<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Acesso e Auditoria.</p></div>", unsafe_allow_html=True)
 
-    # --- TELA 1: ACIONAMENTO ---
+    # --- TELA 1: ACIONAMENTO (CORREÇÃO DAS BOLINHAS STATUS) ---
     elif menu == "🕹️ Acionamento":
         st.header("Controle de Ativos")
+        # Lê o status atual direto do Firebase para sincronia real
+        status_atual = db.reference("controle/led").get()
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU EQUIPAMENTO")
+            # Botão Ligar com bolinha dinâmica
+            if st.button(f"LIGAR {'🟢' if status_atual == 'ON' else '⚪'}"):
+                db.reference("controle/led").set("ON")
+                registrar_evento("LIGOU EQUIPAMENTO")
+                st.rerun()
         with c2:
-            if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU EQUIPAMENTO")
+            # Botão Desligar com bolinha dinâmica
+            if st.button(f"DESLIGAR {'🔴' if status_atual == 'OFF' else '⚪'}"):
+                db.reference("controle/led").set("OFF")
+                registrar_evento("DESLIGOU EQUIPAMENTO")
+                st.rerun()
 
     # --- TELA 2: MEDIÇÃO (CARDS v8.2) ---
     elif menu == "🌡️ Medição":
@@ -128,23 +138,14 @@ else:
         with col2: st.markdown(f'<div class="gauge-card"><div>Umidade (%)</div><div class="gauge-value">{u}</div><div class="bar-umid"></div></div>', unsafe_allow_html=True)
         if st.button("🔄 REFRESH"): st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (COM BOTÃO DE LIMPEZA RESTAURADO) ---
+    # --- TELA 3: RELATÓRIOS (COM BOTÃO DE LIMPEZA) ---
     elif menu == "📊 Relatórios":
-        st.header("Histórico e Mensagens")
+        st.header("Histórico e Auditoria")
+        if st.button("🗑️ LIMPAR HISTÓRICO"):
+            db.reference("historico_acoes").delete()
+            registrar_evento("LIMPEZA GERAL DE HISTÓRICO", manual=True)
+            st.rerun()
         
-        col_rel1, col_rel2 = st.columns([3, 1])
-        with col_rel2:
-            if st.button("⚠️ LIMPAR HISTÓRICO"):
-                db.reference("historico_acoes").delete()
-                registrar_evento("LIMPEZA GERAL DE HISTÓRICO", manual=True)
-                st.success("Histórico apagado!"); time.sleep(1); st.rerun()
-
-        with st.expander("📲 WhatsApp"):
-            tel = st.text_input("Número", value="5562999999999")
-            msg_w = st.text_area("Mensagem", "Alerta ASB!")
-            if st.button("GERAR LINK"):
-                st.markdown(f'<a href="https://wa.me/{tel}?text={urllib.parse.quote(msg_w)}" target="_blank">ENVIAR WHATSAPP</a>', unsafe_allow_html=True)
-
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -155,29 +156,25 @@ else:
 
     # --- TELA 4: DIAGNÓSTICO (PING SENSOR) ---
     elif menu == "🛠️ Diagnóstico":
-        st.header("Teste de Conectividade")
-        if st.button("🔍 EXECUTAR PING DE HARDWARE"):
-            with st.spinner("Sondando ESP32..."):
+        st.header("Diagnóstico de Conexão")
+        if st.button("🔍 EXECUTAR TESTE DE PING"):
+            with st.spinner("Limpando e aguardando resposta..."):
                 db.reference("sensor/temperatura").delete()
                 time.sleep(4)
-                if db.reference("sensor/temperatura").get() is not None: st.session_state["net_status"] = "ON"
-                else: st.session_state["net_status"] = "OFF"
+                st.session_state["net_status"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
         
-        if st.session_state.get("net_status") == "ON":
-            st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
-        elif st.session_state.get("net_status") == "OFF":
-            st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
-        
-        if st.button("REBOOT ESP32"): db.reference("controle/restart").set(True); registrar_evento("REBOOT REMOTO")
+        if st.session_state.get("net_status") == "ON": st.markdown("<div class='status-ok'>✅ HARDWARE CONECTADO</div>", unsafe_allow_html=True)
+        elif st.session_state.get("net_status") == "OFF": st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
+        if st.button("REBOOT REMOTO"): db.reference("controle/restart").set(True); registrar_evento("COMANDO REBOOT")
 
     # --- TELA 5: GESTÃO DE USUÁRIOS ---
     elif menu == "👥 Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("Gestão de Acesso")
-            with st.form("cad_u"):
+            st.header("Operadores")
+            with st.form("cad"):
                 n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha")
-                if st.form_submit_button("Cadastrar Operador"):
-                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s})
-                    st.success("Cadastrado com sucesso!"); st.rerun()
+                if st.form_submit_button("Cadastrar"):
+                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
+                    st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v8.7
+# ASB AUTOMAÇÃO INDUSTRIAL - v8.8
