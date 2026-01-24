@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import pandas as pd
 import time
-import pytz  # Necessário para o horário de Brasília
+import pytz
 
 # --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
@@ -148,13 +148,11 @@ else:
     # --- TELA 3: RELATÓRIOS ---
     elif menu == "Relatórios":
         st.header("📊 Histórico")
-        
         col_rel1, col_rel2 = st.columns(2)
         with col_rel1:
             if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL"):
                 registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
                 st.success("E-mail enviado!")
-        
         with col_rel2:
             confirmar_limpeza = st.checkbox("Confirmar exclusão permanente")
             if st.button("🗑️ LIMPAR TODO O HISTÓRICO"):
@@ -166,7 +164,6 @@ else:
                     st.rerun()
                 else:
                     st.warning("Confirme no checkbox acima.")
-
         st.markdown("---")
         logs = db.reference("historico_acoes").get()
         if logs:
@@ -175,28 +172,34 @@ else:
         else:
             st.info("Banco de dados vazio.")
 
-    # --- TELA 4: DIAGNÓSTICO ---
+    # --- TELA 4: DIAGNÓSTICO (WATCHDOG IMPLEMENTADO) ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
-        inicio_com = time.time()
         try:
-            status_data = db.reference("sensor/temperatura").get()
-            fim_com = time.time()
-            tempo_resposta = round((fim_com - inicio_com) * 1000, 2)
+            # Pegamos o timestamp da última atualização do sensor no Firebase
+            # Nota: O ESP32 deve enviar esse valor para "sensor/timestamp"
+            last_seen_str = db.reference("sensor/timestamp").get()
             
-            if status_data is not None:
-                st.markdown(f"<div class='status-ok'>SISTEMA ONLINE - Latência: {tempo_resposta}ms</div>", unsafe_allow_html=True)
-                # Exibindo horário de Brasília no Diagnóstico
-                st.info(f"Sincronizado às: {obter_hora_brasilia().strftime('%H:%M:%S')} (Brasília)")
+            if last_seen_str:
+                # Converte o tempo do banco e o tempo atual para comparação
+                agora = obter_hora_brasilia()
+                ultimo_contato = datetime.strptime(last_seen_str, '%d/%m/%Y %H:%M:%S').replace(tzinfo=pytz.timezone('America/Sao_Paulo'))
+                diferenca = (agora - ultimo_contato).total_seconds()
+
+                if diferenca < 20: # Se o dado tem menos de 20 segundos, está online
+                    st.markdown(f"<div class='status-ok'>SISTEMA ONLINE (Hardware Ativo)</div>", unsafe_allow_html=True)
+                    st.success(f"Último pacote recebido há {int(diferenca)} segundos.")
+                else:
+                    st.markdown(f"<div class='status-erro'>SISTEMA OFFLINE (Dados Congelados há {int(diferenca)}s)</div>", unsafe_allow_html=True)
+                    st.warning("O ESP32 parou de enviar atualizações.")
             else:
-                raise Exception()
-        except:
-            st.markdown("<div class='status-erro'>ERRO DE COMUNICAÇÃO - RECONECTANDO...</div>", unsafe_allow_html=True)
-            time.sleep(1)
-            st.rerun()
+                st.markdown("<div class='status-erro'>SISTEMA OFFLINE (Sem registros de atividade)</div>", unsafe_allow_html=True)
+        except Exception as e:
+            st.markdown("<div class='status-erro'>ERRO DE SINCRONIZAÇÃO</div>", unsafe_allow_html=True)
+            st.error(f"Verifique se o ESP32 está enviando o campo 'timestamp'.")
 
         st.markdown("---")
-        if st.button("🔄 ATUALIZAR COMUNICAÇÃO"):
+        if st.button("🔄 ATUALIZAR STATUS"):
             st.rerun()
         
         if st.button("RESETAR HARDWARE"):
@@ -218,11 +221,10 @@ else:
                             "data_criacao": obter_hora_brasilia().strftime('%d/%m/%Y')
                         })
                         st.success(f"Operador {nome_novo} cadastrado!")
-            
             st.subheader("Operadores Atuais")
             lista_users = db.reference("usuarios_autorizados").get()
             if lista_users:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.8
+# ASB AUTOMAÇÃO INDUSTRIAL - v6.9
