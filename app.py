@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import pandas as pd
 import time
+import pytz  # Necessário para o horário de Brasília
 
 # --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
@@ -20,7 +21,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXÃO FIREBASE ---
+# --- 2. FUNÇÃO PARA HORÁRIO DE BRASÍLIA ---
+def obter_hora_brasilia():
+    fuso = pytz.timezone('America/Sao_Paulo')
+    return datetime.now(fuso)
+
+# --- 3. CONEXÃO FIREBASE ---
 @st.cache_resource
 def conectar_firebase():
     if not firebase_admin._apps:
@@ -38,10 +44,10 @@ def conectar_firebase():
         except: return False
     return True
 
-# --- 3. REGISTRO DE EVENTO E E-MAIL ---
+# --- 4. REGISTRO DE EVENTO E E-MAIL ---
 def registrar_evento(acao, manual=False):
     usuario = st.session_state.get("user_nome", "desconhecido")
-    agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    agora = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
         if st.session_state.get("email_ativo", True) or manual:
@@ -58,7 +64,7 @@ def registrar_evento(acao, manual=False):
                     server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
     except: pass
 
-# --- 4. FLUXO DE LOGIN ---
+# --- 5. FLUXO DE LOGIN ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
@@ -125,7 +131,7 @@ else:
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (ATUALIZAÇÃO MANUAL) ---
+    # --- TELA 2: MEDIÇÃO ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
@@ -139,7 +145,7 @@ else:
         if st.button("🔄 ATUALIZAR LEITURA"):
             st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (LIMPAR HISTÓRICO) ---
+    # --- TELA 3: RELATÓRIOS ---
     elif menu == "Relatórios":
         st.header("📊 Histórico")
         
@@ -159,19 +165,17 @@ else:
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.warning("Confirme a exclusão no checkbox acima.")
+                    st.warning("Confirme no checkbox acima.")
 
         st.markdown("---")
         logs = db.reference("historico_acoes").get()
         if logs:
-            # Transformando os dados para uso no st.table
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
-            # Exibindo como tabela estática conforme documentação ArrowMixin.table
             st.table(df[['data', 'usuario', 'acao']].head(15))
         else:
-            st.info("Banco de dados de histórico está vazio.")
+            st.info("Banco de dados vazio.")
 
-    # --- TELA 4: DIAGNÓSTICO (RESPOSTA EM TEMPO REAL) ---
+    # --- TELA 4: DIAGNÓSTICO ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
         inicio_com = time.time()
@@ -182,7 +186,8 @@ else:
             
             if status_data is not None:
                 st.markdown(f"<div class='status-ok'>SISTEMA ONLINE - Latência: {tempo_resposta}ms</div>", unsafe_allow_html=True)
-                st.info(f"Sincronizado às: {datetime.now().strftime('%H:%M:%S')}")
+                # Exibindo horário de Brasília no Diagnóstico
+                st.info(f"Sincronizado às: {obter_hora_brasilia().strftime('%H:%M:%S')} (Brasília)")
             else:
                 raise Exception()
         except:
@@ -210,7 +215,7 @@ else:
                     if nome_novo and login_novo and senha_nova:
                         db.reference("usuarios_autorizados").push({
                             "nome": nome_novo, "login": login_novo, "senha": senha_nova,
-                            "data_criacao": datetime.now().strftime('%d/%m/%Y')
+                            "data_criacao": obter_hora_brasilia().strftime('%d/%m/%Y')
                         })
                         st.success(f"Operador {nome_novo} cadastrado!")
             
@@ -220,4 +225,4 @@ else:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.7
+# ASB AUTOMAÇÃO INDUSTRIAL - v6.8
