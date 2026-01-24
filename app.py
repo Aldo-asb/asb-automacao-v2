@@ -139,66 +139,31 @@ else:
         if st.button("🔄 ATUALIZAR LEITURA"):
             st.rerun()
 
-    # --- TELA 3: RELATÓRIOS ---
+    # --- TELA 3: RELATÓRIOS (ETAPA: LIMPAR HISTÓRICO) ---
     elif menu == "Relatórios":
         st.header("📊 Histórico")
-        if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL"):
-            registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
-            st.success("E-mail enviado!")
+        
+        col_rel1, col_rel2 = st.columns(2)
+        with col_rel1:
+            if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL"):
+                registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
+                st.success("E-mail enviado!")
+        
+        with col_rel2:
+            # Botão de limpeza com confirmação simples via checkbox
+            confirmar_limpeza = st.checkbox("Confirmar exclusão permanente")
+            if st.button("🗑️ LIMPAR TODO O HISTÓRICO"):
+                if confirmar_limpeza:
+                    db.reference("historico_acoes").delete()
+                    registrar_evento("HISTÓRICO LIMPO PELO USUÁRIO")
+                    st.success("Histórico removido com sucesso!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.warning("Marque a confirmação acima para limpar.")
+
+        st.markdown("---")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
-            st.table(df[['data', 'usuario', 'acao']].head(10))
-
-    # --- TELA 4: DIAGNÓSTICO (MELHORIA: TEMPO REAL E RECONEXÃO) ---
-    elif menu == "Diagnóstico":
-        st.header("🛠️ Status de Comunicação")
-        
-        # Simulação de tempo de resposta/comunicação
-        inicio_com = time.time()
-        try:
-            status_data = db.reference("sensor/temperatura").get()
-            fim_com = time.time()
-            tempo_resposta = round((fim_com - inicio_com) * 1000, 2)
-            
-            if status_data is not None:
-                st.markdown(f"<div class='status-ok'>SISTEMA ONLINE - Resposta: {tempo_resposta}ms</div>", unsafe_allow_html=True)
-                st.info(f"Última sincronização: {datetime.now().strftime('%H:%M:%S')}")
-            else:
-                raise Exception("Sem dados")
-        except:
-            st.markdown("<div class='status-erro'>FALHA NA COMUNICAÇÃO - TENTANDO RECONECTAR...</div>", unsafe_allow_html=True)
-            time.sleep(1)
-            st.rerun() # Reinicia o ciclo de comunicação em caso de falha
-
-        st.markdown("---")
-        if st.button("🔄 ATUALIZAR COMUNICAÇÃO"):
-            st.rerun()
-        
-        if st.button("RESETAR HARDWARE"):
-            db.reference("controle/restart").set(True)
-            registrar_evento("RESET REMOTO")
-
-    # --- TELA 5: GESTÃO DE USUÁRIOS ---
-    elif menu == "Gestão de Usuários":
-        if st.session_state["is_admin"]:
-            st.header("👥 Cadastro de Operadores")
-            with st.form("form_cadastro"):
-                nome_novo = st.text_input("Nome Completo")
-                login_novo = st.text_input("Login")
-                senha_nova = st.text_input("Senha", type="password")
-                if st.form_submit_button("CADASTRAR"):
-                    if nome_novo and login_novo and senha_nova:
-                        db.reference("usuarios_autorizados").push({
-                            "nome": nome_novo, "login": login_novo, "senha": senha_nova,
-                            "data_criacao": datetime.now().strftime('%d/%m/%Y')
-                        })
-                        st.success(f"Operador {nome_novo} cadastrado!")
-            
-            st.subheader("Operadores Cadastrados")
-            lista_users = db.reference("usuarios_autorizados").get()
-            if lista_users:
-                for key, val in lista_users.items():
-                    st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
-
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.5
+            st.table
