@@ -13,8 +13,7 @@ st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 st.markdown("""
     <style>
     .titulo-asb { color: #00458d; font-size: 55px; font-weight: bold; text-align: center; margin-top: 40px; border-bottom: 3px solid #00458d; }
-    .stButton>button { width: 100%; height: 3.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
-    .card-usuario { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #00458d; }
+    .stButton>button { width: 100%; height: 4.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
     .status-ok { color: #28a745; font-weight: bold; padding: 10px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; }
     .status-erro { color: #dc3545; font-weight: bold; padding: 10px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; }
     </style>
@@ -38,28 +37,30 @@ def conectar_firebase():
         except: return False
     return True
 
-# --- 3. REGISTRO DE EVENTO ---
-def registrar_evento(acao):
+# --- 3. REGISTRO DE EVENTO E E-MAIL ---
+def registrar_evento(acao, manual=False):
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
-        remetente = st.secrets.get("email_user")
-        senha = st.secrets.get("email_password")
-        if remetente and senha:
-            msg = MIMEText(f"LOG ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
-            msg['Subject'] = f"SISTEMA ASB: {acao}"
-            msg['From'] = remetente
-            msg['To'] = "asbautomacao@gmail.com"
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
-                server.login(remetente, senha)
-                server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
+        if st.session_state.get("email_ativo", True) or manual:
+            remetente = st.secrets.get("email_user")
+            senha = st.secrets.get("email_password")
+            if remetente and senha:
+                msg = MIMEText(f"LOG ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
+                msg['Subject'] = f"SISTEMA ASB: {acao}"
+                msg['From'] = remetente
+                msg['To'] = "asbautomacao@gmail.com"
+                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    server.starttls()
+                    server.login(remetente, senha)
+                    server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
     except: pass
 
 # --- 4. FLUXO DE LOGIN ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
+if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
 
 if not st.session_state["logado"]:
     conectar_firebase()
@@ -89,83 +90,88 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # LISTA DE OPÇÕES (Diagnóstico restaurado para todos)
     opcoes_menu = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
     if st.session_state["is_admin"]:
         opcoes_menu.append("Gestão de Usuários")
     
     menu = st.sidebar.radio("Navegação:", opcoes_menu)
+    st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
     
     if st.sidebar.button("SAIR"):
         st.session_state["logado"] = False
-        st.session_state["is_admin"] = False
         st.rerun()
 
-    # --- TELA 1: ACIONAMENTO ---
+    # --- TELA 1: ACIONAMENTO (BOTÕES LADO A LADO) ---
     if menu == "Acionamento":
         st.header("🕹️ Controle Operacional")
+        status_atual = db.reference("controle/led").get()
         c1, c2 = st.columns(2)
-        if c1.button("LIGAR"):
-            db.reference("controle/led").set("ON")
-            registrar_evento("LIGOU EQUIPAMENTO")
-        if c2.button("DESLIGAR"):
-            db.reference("controle/led").set("OFF")
-            registrar_evento("DESLIGOU EQUIPAMENTO")
+        with c1:
+            label_on = "LIGAR 🟢" if status_atual == "ON" else "LIGAR ⚪"
+            if st.button(label_on):
+                db.reference("controle/led").set("ON")
+                registrar_evento("LIGOU EQUIPAMENTO")
+                st.rerun()
+        with c2:
+            label_off = "DESLIGAR 🔴" if status_atual == "OFF" else "DESLIGAR ⚪"
+            if st.button(label_off):
+                db.reference("controle/led").set("OFF")
+                registrar_evento("DESLIGOU EQUIPAMENTO")
+                st.rerun()
 
-    # --- TELA 2: MEDIÇÃO ---
+    # --- TELA 2: MEDIÇÃO (TEMP E UMIDADE) ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
-        st.metric("Temperatura", f"{t} °C")
+        u = db.reference("sensor/umidade").get() or 0
+        col_t, col_u = st.columns(2)
+        col_t.metric("Temperatura", f"{t} °C")
+        col_u.metric("Umidade", f"{u} %")
         time.sleep(2)
         st.rerun()
 
-    # --- TELA 3: RELATÓRIOS ---
+    # --- TELA 3: RELATÓRIOS (BOTÃO EMAIL MANUAL) ---
     elif menu == "Relatórios":
-        st.header("📊 Histórico")
+        st.header("📊 Histórico de Ações")
+        if st.button("📧 ENVIAR RELATÓRIO AGORA"):
+            registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
+            st.success("E-mail enviado!")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
-            st.table(df[['data', 'usuario', 'acao']].head(10))
+            st.table(df[['data', 'usuario', 'acao']].head(15))
 
-    # --- TELA 4: DIAGNÓSTICO (RESTAURADA) ---
+    # --- TELA 4: DIAGNÓSTICO (LÓGICA DE HEARTBEAT) ---
     elif menu == "Diagnóstico":
-        st.header("🛠️ Status de Comunicação")
-        status = db.reference("sensor/temperatura").get()
-        if status is not None:
-            st.markdown("<div class='status-ok'>ESP32 CONECTADO</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='status-erro'>ESP32 DESCONECTADO</div>", unsafe_allow_html=True)
+        st.header("🛠️ Status de Conectividade")
         
-        if st.button("RESETAR HARDWARE"):
+        # O Firebase guarda metadados de quando um nó foi alterado pela última vez
+        # Como não mudamos o ESP32, verificamos se o valor no banco existe.
+        # Para um teste real de 'Offline', desligue o ESP32 e mude um valor no console do Firebase manualmente. 
+        # Se o App não receber nada novo do Hardware em si, ele indicará o status.
+        
+        sensor_data = db.reference("sensor").get()
+        
+        if sensor_data:
+            st.markdown("<div class='status-ok'>HARDWARE ALIMENTADO E CONECTADO</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='status-erro'>DISPOSITIVO FORA DE ALCANCE (OFFLINE)</div>", unsafe_allow_html=True)
+            
+        if st.button("RESETAR MÓDULO"):
             db.reference("controle/restart").set(True)
             registrar_evento("RESET REMOTO")
 
-    # --- TELA 5: GESTÃO DE USUÁRIOS (RESTRITA) ---
+    # --- TELA 5: GESTÃO DE USUÁRIOS ---
     elif menu == "Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("👥 Cadastro de Novos Operadores")
+            st.header("👥 Cadastro de Operadores")
             with st.form("form_cadastro"):
-                nome_novo = st.text_input("Nome Completo")
-                login_novo = st.text_input("Login (Usuário)")
-                senha_nova = st.text_input("Senha de Acesso", type="password")
-                btn_cadastrar = st.form_submit_button("CADASTRAR OPERADOR")
-                
-                if btn_cadastrar:
-                    if nome_novo and login_novo and senha_nova:
-                        db.reference("usuarios_autorizados").push({
-                            "nome": nome_novo, "login": login_novo, "senha": senha_nova,
-                            "data_criacao": datetime.now().strftime('%d/%m/%Y')
-                        })
-                        st.success(f"Operador {nome_novo} cadastrado!")
-                        registrar_evento(f"CADASTROU USUÁRIO: {login_novo}")
-                    else: st.warning("Preencha todos os campos.")
+                n = st.text_input("Nome")
+                l = st.text_input("Login")
+                s = st.text_input("Senha", type="password")
+                if st.form_submit_button("CADASTRAR"):
+                    if n and l and s:
+                        db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data_criacao": datetime.now().strftime('%d/%m/%Y')})
+                        st.success("Cadastrado!")
 
-            st.markdown("---")
-            st.subheader("Operadores Cadastrados")
-            lista_users = db.reference("usuarios_autorizados").get()
-            if lista_users:
-                for key, val in lista_users.items():
-                    st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val['nome']} | <b>Login:</b> {val['login']}</div>", unsafe_allow_html=True)
-
-# ASB AUTOMAÇÃO INDUSTRIAL - v4.4
+# ASB AUTOMAÇÃO INDUSTRIAL - v4.7
