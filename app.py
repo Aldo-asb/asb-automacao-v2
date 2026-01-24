@@ -131,7 +131,7 @@ else:
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (GRÁFICO COM DADOS DISPONÍVEIS) ---
+    # --- TELA 2: MEDIÇÃO (GRÁFICOS SEPARADOS) ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
@@ -142,15 +142,24 @@ else:
         col_u.metric("Umidade", f"{u} %")
         
         st.markdown("---")
-        st.subheader("📈 Visualização de Dados")
-        # Cria um gráfico simples com o valor atual para visualização imediata
-        dados_grafico = pd.DataFrame({"Valor": [t, u]}, index=["Temperatura", "Umidade"])
-        st.bar_chart(dados_grafico)
+        
+        # Colunas para os gráficos individuais
+        g1, g2 = st.columns(2)
+        
+        with g1:
+            st.subheader("🌡️ Nível de Temperatura")
+            df_t = pd.DataFrame({"°C": [t]}, index=["Atual"])
+            st.bar_chart(df_t, color="#dc3545") # Vermelho para temperatura
+            
+        with g2:
+            st.subheader("💧 Nível de Umidade")
+            df_u = pd.DataFrame({"%": [u]}, index=["Atual"])
+            st.bar_chart(df_u, color="#00458d") # Azul para umidade
 
         if st.button("🔄 REFRESH (ATUALIZAR LEITURA)"):
             st.rerun()
 
-    # --- TELA 3: RELATÓRIOS (ST.TABLE PRESERVADO) ---
+    # --- TELA 3: RELATÓRIOS ---
     elif menu == "Relatórios":
         st.header("📊 Histórico de Ações")
         col_rel1, col_rel2 = st.columns(2)
@@ -174,13 +183,10 @@ else:
             st.table(df[['data', 'usuario', 'acao']].head(15))
         else: st.info("Banco de dados vazio.")
 
-    # --- TELA 4: DIAGNÓSTICO (RETORNO À LÓGICA DE PRESENÇA) ---
+    # --- TELA 4: DIAGNÓSTICO ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
-        
-        # Validação simples: se existe o nó sensor, o sistema é considerado conectado
         check_sensor = db.reference("sensor/temperatura").get()
-        
         if check_sensor is not None:
             st.markdown(f"<div class='status-ok'>SISTEMA ONLINE (Banco de Dados Ativo)</div>", unsafe_allow_html=True)
             st.info(f"Última leitura detectada às {obter_hora_brasilia().strftime('%H:%M:%S')}")
@@ -214,4 +220,4 @@ else:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v7.3
+# ASB AUTOMAÇÃO INDUSTRIAL - v7.4
