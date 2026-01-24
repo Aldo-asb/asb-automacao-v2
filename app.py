@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import pandas as pd
 
-# --- 1. IDENTIDADE VISUAL (PRESERVADA) ---
+# --- 1. IDENTIDADE VISUAL (PRESERVADA E PADRONIZADA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXÃO FIREBASE (LIMPA) ---
+# --- 2. CONEXÃO FIREBASE ---
 @st.cache_resource
 def conectar_firebase():
     if not firebase_admin._apps:
@@ -38,7 +38,7 @@ def conectar_firebase():
 
 # --- 3. REGISTRO DE EVENTO E E-MAIL ---
 def registrar_evento(acao, manual=False):
-    usuario = st.session_state.get("user_nome", "desconhecido")
+    usuario = st.session_state.get("user_nome", "operador")
     agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
@@ -46,8 +46,8 @@ def registrar_evento(acao, manual=False):
             remetente = st.secrets.get("email_user")
             senha = st.secrets.get("email_password")
             if remetente and senha:
-                msg = MIMEText(f"LOG ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
-                msg['Subject'] = f"SISTEMA ASB: {acao}"
+                msg = MIMEText(f"SISTEMA ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
+                msg['Subject'] = f"LOG ASB: {acao}"
                 msg['From'] = remetente
                 msg['To'] = "asbautomacao@gmail.com"
                 with smtplib.SMTP('smtp.gmail.com', 587) as server:
@@ -60,7 +60,6 @@ def registrar_evento(acao, manual=False):
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
-if "ultimo_comando" not in st.session_state: st.session_state["ultimo_comando"] = None
 
 if not st.session_state["logado"]:
     conectar_firebase()
@@ -77,22 +76,16 @@ if not st.session_state["logado"]:
                 st.rerun()
             else:
                 usuarios_db = db.reference("usuarios_autorizados").get()
-                sucesso = False
                 if usuarios_db:
                     for key, user_data in usuarios_db.items():
                         if user_data['login'] == u_input and user_data['senha'] == p_input:
                             st.session_state["logado"] = True
                             st.session_state["user_nome"] = user_data['nome']
-                            st.session_state["is_admin"] = False
-                            sucesso = True
                             st.rerun()
-                if not sucesso: st.error("Usuário ou senha incorretos.")
+                if not st.session_state["logado"]: st.error("Acesso negado.")
 else:
     conectar_firebase()
-    opcoes_menu = ["Acionamento", "Medição", "Relatórios", "Diagnóstico"]
-    if st.session_state["is_admin"]: opcoes_menu.append("Gestão de Usuários")
-    
-    menu = st.sidebar.radio("Navegação:", opcoes_menu)
+    menu = st.sidebar.radio("Navegação:", ["Acionamento", "Medição", "Relatórios", "Diagnóstico", "Gestão de Usuários"])
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
     
     if st.sidebar.button("SAIR"):
@@ -102,68 +95,66 @@ else:
     # --- TELA 1: ACIONAMENTO (BOTÕES LADO A LADO) ---
     if menu == "Acionamento":
         st.header("🕹️ Controle Operacional")
-        c1, c2 = st.columns(2)
-        status_sessao = st.session_state["ultimo_comando"]
+        # Leitura em tempo real do status do LED no banco
+        status_db = db.reference("controle/led").get()
         
+        c1, c2 = st.columns(2)
         with c1:
-            btn_ligar = f"LIGAR {'🟢' if status_sessao == 'ON' else '⚪'}"
-            if st.button(btn_ligar):
+            if st.button(f"LIGAR {'🟢' if status_db == 'ON' else '⚪'}"):
                 db.reference("controle/led").set("ON")
-                st.session_state["ultimo_comando"] = "ON"
                 registrar_evento("LIGOU EQUIPAMENTO")
                 st.rerun()
         with c2:
-            btn_desligar = f"DESLIGAR {'🔴' if status_sessao == 'OFF' else '⚪'}"
-            if st.button(btn_desligar):
+            if st.button(f"DESLIGAR {'🔴' if status_db == 'OFF' else '⚪'}"):
                 db.reference("controle/led").set("OFF")
-                st.session_state["ultimo_comando"] = "OFF"
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO (LEITURA DIRETA E REAL) ---
+    # --- TELA 2: MEDIÇÃO (DADOS REAIS SEM FILTRO) ---
     elif menu == "Medição":
-        st.header("🌡️ Monitoramento Real")
+        st.header("🌡️ Monitoramento Industrial")
         temp = db.reference("sensor/temperatura").get()
         umid = db.reference("sensor/umidade").get()
         col_t, col_u = st.columns(2)
         col_t.metric("Temperatura", f"{temp} °C")
         col_u.metric("Umidade", f"{umid} %")
-        # Sem delays artificiais aqui para não travar a conexão
-        if st.button("ATUALIZAR"): st.rerun()
+        if st.button("ATUALIZAR DADOS"): st.rerun()
 
     # --- TELA 3: RELATÓRIOS ---
     elif menu == "Relatórios":
-        st.header("📊 Histórico de Ações")
-        if st.button("📧 ENVIAR RELATÓRIO POR E-MAIL"):
-            registrar_evento("RELATÓRIO MANUAL", manual=True)
-            st.success("E-mail enviado!")
+        st.header("📊 Histórico de Operações")
+        if st.button("📧 ENVIAR RELATÓRIO MANUAL"):
+            registrar_evento("RELATÓRIO MANUAL SOLICITADO", manual=True)
+            st.success("Enviado para asbautomacao@gmail.com")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(15))
 
-    # --- TELA 4: DIAGNÓSTICO (APENAS REFLEXO DO BANCO) ---
+    # --- TELA 4: DIAGNÓSTICO (VERDADE DO BANCO) ---
     elif menu == "Diagnóstico":
-        st.header("🛠️ Diagnóstico")
-        # Sem lógica de tempo. Se o banco responde, mostra OK.
+        st.header("🛠️ Status de Comunicação")
         try:
+            # Verifica apenas se o Firebase responde
             db.reference("sensor/temperatura").get()
-            st.markdown("<div class='status-ok'>CONEXÃO COM BANCO DE DADOS: ATIVA</div>", unsafe_allow_html=True)
+            st.markdown("<div class='status-ok'>BANCO DE DADOS CONECTADO</div>", unsafe_allow_html=True)
         except:
-            st.markdown("<div class='status-erro'>ERRO DE COMUNICAÇÃO</div>", unsafe_allow_html=True)
+            st.markdown("<div class='status-erro'>FALHA NA CONEXÃO COM A NUVEM</div>", unsafe_allow_html=True)
         
-        if st.button("REINICIAR ESP32"):
+        if st.button("COMANDO RESTART (ESP32)"):
             db.reference("controle/restart").set(True)
-            registrar_evento("COMANDO RESTART")
+            registrar_evento("RESTART SOLICITADO")
 
-    # --- TELA 5: GESTÃO DE USUÁRIOS ---
+    # --- TELA 5: GESTÃO DE USUÁRIOS (ADMIN APENAS) ---
     elif menu == "Gestão de Usuários":
         if st.session_state["is_admin"]:
-            st.header("👥 Gestão de Operadores")
-            with st.form("cad"):
-                n = st.text_input("Nome"); l = st.text_input("Login"); s = st.text_input("Senha", type="password")
+            st.header("👥 Cadastro de Operadores")
+            with st.form("cad_user"):
+                n = st.text_input("Nome"); l = st.text_input("Login"); s = st.text_input("Senha")
                 if st.form_submit_button("CADASTRAR"):
                     db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s})
-                    st.success("Cadastrado!")
+                    st.success("Novo operador cadastrado.")
+        else:
+            st.warning("Acesso restrito ao Administrador.")
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v5.4
+# ASB AUTOMAÇÃO INDUSTRIAL - v5.6
