@@ -30,12 +30,10 @@ st.markdown("""
     
     .chat-container { display: flex; flex-direction: column; gap: 10px; background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; }
     .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
-    .msg-admin { align-self: flex-end; background-color: #dcf8c6; }
-    .msg-user { align-self: flex-start; background-color: #ffffff; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES AUXILIARES ---
+# --- 2. FUNÇÕES AUXILIARES (E-MAIL RESTAURADO) ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
@@ -60,14 +58,23 @@ def registrar_evento(acao, manual=False):
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
+        # Registra no Firebase
         db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
+        
+        # LOGICA DE E-MAIL (RESTAURADA E PRESERVADA)
         if st.session_state.get("email_ativo", True) or manual:
-            remetente, senha = st.secrets.get("email_user"), st.secrets.get("email_password")
+            remetente = st.secrets.get("email_user")
+            senha = st.secrets.get("email_password")
             if remetente and senha:
                 msg = MIMEText(f"LOG ASB\nUsuário: {usuario}\nAção: {acao}\nHora: {agora}")
-                msg['Subject'] = f"SISTEMA ASB: {acao}"; msg['From'] = remetente; msg['To'] = "asbautomacao@gmail.com"
-                server = smtplib.SMTP('smtp.gmail.com', 587); server.starttls(); server.login(remetente, senha)
-                server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string()); server.quit()
+                msg['Subject'] = f"SISTEMA ASB: {acao}"
+                msg['From'] = remetente
+                msg['To'] = "asbautomacao@gmail.com"
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(remetente, senha)
+                server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
+                server.quit()
     except: pass
 
 # --- 3. FLUXO DE LOGIN ---
@@ -101,9 +108,10 @@ else:
     menu_opcoes = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: menu_opcoes.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação Principal:", menu_opcoes)
+    st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- TELA 0: HOME v8.0 PRESERVADA ---
+    # --- TELA 0: HOME v8.0 ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         st.markdown("<div class='subtitulo-asb'>Plataforma Integrada de Gestão e Monitoramento IoT</div>", unsafe_allow_html=True)
@@ -117,18 +125,22 @@ else:
         st.header("Controle de Ativos")
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU EQUIPAMENTO")
+            if st.button("LIGAR"): 
+                db.reference("controle/led").set("ON"); st.session_state["click_status"] = "ON"
+                registrar_evento("LIGOU EQUIPAMENTO")
         with c2:
-            if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU EQUIPAMENTO")
+            if st.button("DESLIGAR"): 
+                db.reference("controle/led").set("OFF"); st.session_state["click_status"] = "OFF"
+                registrar_evento("DESLIGOU EQUIPAMENTO")
 
-    # --- TELA 2: MEDIÇÃO ---
+    # --- TELA 2: MEDIÇÃO (CARDS v8.2) ---
     elif menu == "🌡️ Medição":
         st.header("Telemetria")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
         col1, col2 = st.columns(2)
         with col1: st.markdown(f'<div class="gauge-card"><div>Temperatura (°C)</div><div class="gauge-value">{t}</div><div class="bar-temp"></div></div>', unsafe_allow_html=True)
         with col2: st.markdown(f'<div class="gauge-card"><div>Umidade (%)</div><div class="gauge-value">{u}</div><div class="bar-umid"></div></div>', unsafe_allow_html=True)
-        if st.button("🔄 REFRESH"): st.rerun()
+        if st.button("🔄 ATUALIZAR"): st.rerun()
 
     # --- TELA 3: RELATÓRIOS ---
     elif menu == "📊 Relatórios":
@@ -138,37 +150,31 @@ else:
             msg = st.text_area("Mensagem", "Alerta ASB!")
             if st.button("GERAR LINK"):
                 st.markdown(f'<a href="https://wa.me/{tel}?text={urllib.parse.quote(msg)}" target="_blank">ENVIAR</a>', unsafe_allow_html=True)
+                registrar_evento(f"ALERTA WHATSAPP PARA {tel}")
+        
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
             for k in reversed(list(logs.keys())):
                 v = logs[k]
-                st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TELA 4: DIAGNÓSTICO (SOLUÇÃO SEM MEXER NO ESP32) ---
+    # --- TELA 4: DIAGNÓSTICO (PING SENSOR) ---
     elif menu == "🛠️ Diagnóstico":
-        st.header("Teste de Conectividade em Tempo Real")
-        st.write("Esta ferramenta força uma verificação de escrita para confirmar se o ESP32 está respondendo agora.")
-        
+        st.header("Teste de Conectividade")
         if st.button("🔍 EXECUTAR PING DE HARDWARE"):
             with st.spinner("Sondando ESP32..."):
-                # 1. Limpa o valor atual no Firebase
                 db.reference("sensor/temperatura").delete()
-                # 2. Aguarda o tempo de ciclo do ESP32 (geralmente ele envia a cada 2-5 seg)
                 time.sleep(4)
-                # 3. Tenta ler novamente
-                teste = db.reference("sensor/temperatura").get()
-                
-                if teste is not None:
+                if db.reference("sensor/temperatura").get() is not None:
                     st.session_state["net_status"] = "ON"
-                else:
-                    st.session_state["net_status"] = "OFF"
+                else: st.session_state["net_status"] = "OFF"
         
         if st.session_state.get("net_status") == "ON":
-            st.markdown("<div class='status-ok'>CONEXÃO ATIVA: O hardware respondeu ao teste.</div>", unsafe_allow_html=True)
-        elif st.session_state.get("net_status") == "OFF":
-            st.markdown("<div class='status-erro'>HARDWARE OFFLINE: Sem resposta do sensor.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
+        if st.button("REBOOT ESP32"): db.reference("controle/restart").set(True); registrar_evento("REBOOT REMOTO")
 
     # --- TELA 5: GESTÃO DE USUÁRIOS ---
     elif menu == "👥 Gestão de Usuários":
@@ -177,7 +183,10 @@ else:
             with st.form("f"):
                 n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha")
                 if st.form_submit_button("Cadastrar"):
-                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s})
+                    db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                     st.success("OK"); st.rerun()
+            users = db.reference("usuarios_autorizados").get()
+            if users:
+                for k, v in users.items(): st.markdown(f"<div style='padding:10px; border-bottom:1px solid #ddd;'><b>{v.get('nome')}</b></div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v8.5
+# ASB AUTOMAÇÃO INDUSTRIAL - v8.6
