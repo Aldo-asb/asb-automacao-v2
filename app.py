@@ -9,21 +9,36 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL (FIDELIDADE v8.7 + GRÁFICO ABAULADO v9.4) ---
+# --- 1. CONFIGURAÇÃO VISUAL (FIDELIDADE v8.7 + STATUS DINÂMICO v9.5) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
     <style>
     .titulo-asb { color: #00458d; font-size: 55px; font-weight: bold; text-align: center; margin-top: 40px; border-bottom: 3px solid #00458d; }
     .subtitulo-asb { color: #555; font-size: 20px; text-align: center; margin-bottom: 30px; }
-    .stButton>button { width: 100%; height: 3.5em; font-weight: bold; background-color: #00458d; color: white; border-radius: 10px; }
+    
+    /* BOTÕES COM FAIXA LATERAL DE STATUS */
+    .stButton>button { 
+        width: 100%; 
+        height: 4em; 
+        font-weight: bold; 
+        background-color: #00458d; 
+        color: white; 
+        border-radius: 10px; 
+        border: none;
+        transition: 0.3s;
+    }
+    
+    .btn-ligado { border-left: 12px solid #28a745 !important; }
+    .btn-desligado { border-left: 12px solid #dc3545 !important; }
+    .btn-neutro { border-left: 12px solid #888 !important; }
+
     .status-ok { color: #28a745; font-weight: bold; padding: 20px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; font-size: 22px; }
     .status-erro { color: #dc3545; font-weight: bold; padding: 20px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; font-size: 22px; }
     
     .home-card { background-color: #ffffff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #00458d; text-align: center; height: 100%; }
     .home-icon { font-size: 40px; margin-bottom: 15px; }
 
-    /* CARD ABAULADO COM ANIMAÇÃO LATERAL */
     .gauge-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border: 1px solid #f0f0f0; }
     .gauge-value { font-size: 50px; font-weight: 800; color: #333; margin: 15px 0; }
     
@@ -38,7 +53,6 @@ st.markdown("""
 
     .chat-container { display: flex; flex-direction: column; gap: 10px; background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
     .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); background-color: #ffffff; margin-bottom: 5px; }
-    .card-usuario { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #00458d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -107,56 +121,47 @@ else:
     conectar_firebase()
     menu_opcoes = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: menu_opcoes.append("👥 Gestão de Usuários")
-    menu = st.sidebar.radio("Menu:", menu_opcoes)
+    menu = st.sidebar.radio("Navegação:", menu_opcoes)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
-    if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Sair"): st.session_state["logado"] = False; st.rerun()
 
     # --- TELA 0: HOME ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento via nuvem.</p></div>""", unsafe_allow_html=True)
+        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo.</p></div>""", unsafe_allow_html=True)
         with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Dados em tempo real.</p></div>""", unsafe_allow_html=True)
-        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
+        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria e Acesso.</p></div>""", unsafe_allow_html=True)
 
-    # --- TELA 1: ACIONAMENTO ---
+    # --- TELA 1: ACIONAMENTO (NOVO: BOLINHA + FAIXA LATERAL) ---
     elif menu == "🕹️ Acionamento":
         st.header("Controle de Dispositivos")
         status_real = db.reference("controle/led").get()
+        
         c1, c2 = st.columns(2)
         with c1:
+            classe_ligar = "btn-ligado" if status_real == "ON" else "btn-neutro"
+            st.markdown(f'<div class="{classe_ligar}">', unsafe_allow_html=True)
             if st.button(f"LIGAR {'🟢' if status_real == 'ON' else '⚪'}"):
                 db.reference("controle/led").set("ON"); registrar_evento("LIGOU EQUIPAMENTO"); st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
         with c2:
+            classe_desligar = "btn-desligado" if status_real == "OFF" else "btn-neutro"
+            st.markdown(f'<div class="{classe_desligar}">', unsafe_allow_html=True)
             if st.button(f"DESLIGAR {'🔴' if status_real == 'OFF' else '⚪'}"):
                 db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU EQUIPAMENTO"); st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TELA 2: MEDIÇÃO (CORREÇÃO: CARD ABAULADO + BARRA GRÁFICO) ---
+    # --- TELA 2: MEDIÇÃO ---
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f'''
-                <div class="gauge-card">
-                    <div>Temperatura (°C)</div>
-                    <div class="gauge-value">{t}</div>
-                    <div class="moving-bar-container">
-                        <div class="moving-bar-temp"></div>
-                    </div>
-                </div>
-            ''', unsafe_allow_html=True)
-            
+            st.markdown(f'''<div class="gauge-card"><div>Temperatura (°C)</div><div class="gauge-value">{t}</div><div class="moving-bar-container"><div class="moving-bar-temp"></div></div></div>''', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'''
-                <div class="gauge-card">
-                    <div>Umidade (%)</div>
-                    <div class="gauge-value">{u}</div>
-                    <div class="moving-bar-container">
-                        <div class="moving-bar-umid"></div>
-                    </div>
-                </div>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<div class="gauge-card"><div>Umidade (%)</div><div class="gauge-value">{u}</div><div class="moving-bar-container"><div class="moving-bar-umid"></div></div></div>''', unsafe_allow_html=True)
         if st.button("🔄 REFRESH"): st.rerun()
 
     # --- TELA 3: RELATÓRIOS ---
@@ -185,4 +190,4 @@ else:
         if st.session_state.get("net_status") == "ON": st.markdown("<div class='status-ok'>✅ CONECTADO</div>", unsafe_allow_html=True)
         elif st.session_state.get("net_status") == "OFF": st.markdown("<div class='status-erro'>❌ DESCONECTADO</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v9.4
+# ASB AUTOMAÇÃO INDUSTRIAL - v9.5
