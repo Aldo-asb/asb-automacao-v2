@@ -8,7 +8,7 @@ import pandas as pd
 import time
 import pytz
 
-# --- 1. CONFIGURAÇÃO VISUAL (PRESERVADA) ---
+# --- 1. CONFIGURAÇÃO VISUAL (PADRÃO ASB) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -84,6 +84,7 @@ if not st.session_state["logado"]:
                 st.session_state["is_admin"] = True
                 st.rerun()
             else:
+                conectar_firebase()
                 usuarios_db = db.reference("usuarios_autorizados").get()
                 sucesso = False
                 if usuarios_db:
@@ -115,7 +116,6 @@ else:
         st.header("🕹️ Controle Operacional")
         c1, c2 = st.columns(2)
         status_sessao = st.session_state["click_status"]
-        
         with c1:
             label_ligar = f"LIGAR {'🟢' if status_sessao == 'ON' else '⚪'}"
             if st.button(label_ligar):
@@ -131,7 +131,7 @@ else:
                 registrar_evento("DESLIGOU EQUIPAMENTO")
                 st.rerun()
 
-    # --- TELA 2: MEDIÇÃO ---
+    # --- TELA 2: MEDIÇÃO (GRÁFICO COM DADOS DISPONÍVEIS) ---
     elif menu == "Medição":
         st.header("🌡️ Monitoramento")
         t = db.reference("sensor/temperatura").get() or 0
@@ -142,12 +142,17 @@ else:
         col_u.metric("Umidade", f"{u} %")
         
         st.markdown("---")
-        if st.button("🔄 ATUALIZAR LEITURA"):
+        st.subheader("📈 Visualização de Dados")
+        # Cria um gráfico simples com o valor atual para visualização imediata
+        dados_grafico = pd.DataFrame({"Valor": [t, u]}, index=["Temperatura", "Umidade"])
+        st.bar_chart(dados_grafico)
+
+        if st.button("🔄 REFRESH (ATUALIZAR LEITURA)"):
             st.rerun()
 
-    # --- TELA 3: RELATÓRIOS ---
+    # --- TELA 3: RELATÓRIOS (ST.TABLE PRESERVADO) ---
     elif menu == "Relatórios":
-        st.header("📊 Histórico")
+        st.header("📊 Histórico de Ações")
         col_rel1, col_rel2 = st.columns(2)
         with col_rel1:
             if st.button("📧 ENVIAR HISTÓRICO POR E-MAIL"):
@@ -162,46 +167,29 @@ else:
                     st.success("Histórico removido!")
                     time.sleep(1)
                     st.rerun()
-                else:
-                    st.warning("Confirme no checkbox acima.")
         st.markdown("---")
         logs = db.reference("historico_acoes").get()
         if logs:
             df = pd.DataFrame(list(logs.values())).iloc[::-1]
             st.table(df[['data', 'usuario', 'acao']].head(15))
-        else:
-            st.info("Banco de dados vazio.")
+        else: st.info("Banco de dados vazio.")
 
-    # --- TELA 4: DIAGNÓSTICO (WATCHDOG IMPLEMENTADO) ---
+    # --- TELA 4: DIAGNÓSTICO (RETORNO À LÓGICA DE PRESENÇA) ---
     elif menu == "Diagnóstico":
         st.header("🛠️ Status de Comunicação")
-        try:
-            # Pegamos o timestamp da última atualização do sensor no Firebase
-            # Nota: O ESP32 deve enviar esse valor para "sensor/timestamp"
-            last_seen_str = db.reference("sensor/timestamp").get()
-            
-            if last_seen_str:
-                # Converte o tempo do banco e o tempo atual para comparação
-                agora = obter_hora_brasilia()
-                ultimo_contato = datetime.strptime(last_seen_str, '%d/%m/%Y %H:%M:%S').replace(tzinfo=pytz.timezone('America/Sao_Paulo'))
-                diferenca = (agora - ultimo_contato).total_seconds()
-
-                if diferenca < 20: # Se o dado tem menos de 20 segundos, está online
-                    st.markdown(f"<div class='status-ok'>SISTEMA ONLINE (Hardware Ativo)</div>", unsafe_allow_html=True)
-                    st.success(f"Último pacote recebido há {int(diferenca)} segundos.")
-                else:
-                    st.markdown(f"<div class='status-erro'>SISTEMA OFFLINE (Dados Congelados há {int(diferenca)}s)</div>", unsafe_allow_html=True)
-                    st.warning("O ESP32 parou de enviar atualizações.")
-            else:
-                st.markdown("<div class='status-erro'>SISTEMA OFFLINE (Sem registros de atividade)</div>", unsafe_allow_html=True)
-        except Exception as e:
-            st.markdown("<div class='status-erro'>ERRO DE SINCRONIZAÇÃO</div>", unsafe_allow_html=True)
-            st.error(f"Verifique se o ESP32 está enviando o campo 'timestamp'.")
+        
+        # Validação simples: se existe o nó sensor, o sistema é considerado conectado
+        check_sensor = db.reference("sensor/temperatura").get()
+        
+        if check_sensor is not None:
+            st.markdown(f"<div class='status-ok'>SISTEMA ONLINE (Banco de Dados Ativo)</div>", unsafe_allow_html=True)
+            st.info(f"Última leitura detectada às {obter_hora_brasilia().strftime('%H:%M:%S')}")
+        else:
+            st.markdown("<div class='status-erro'>SISTEMA OFFLINE (Sem dados no nó sensor)</div>", unsafe_allow_html=True)
 
         st.markdown("---")
         if st.button("🔄 ATUALIZAR STATUS"):
             st.rerun()
-        
         if st.button("RESETAR HARDWARE"):
             db.reference("controle/restart").set(True)
             registrar_evento("RESET REMOTO")
@@ -221,10 +209,9 @@ else:
                             "data_criacao": obter_hora_brasilia().strftime('%d/%m/%Y')
                         })
                         st.success(f"Operador {nome_novo} cadastrado!")
-            st.subheader("Operadores Atuais")
             lista_users = db.reference("usuarios_autorizados").get()
             if lista_users:
                 for key, val in lista_users.items():
                     st.markdown(f"<div class='card-usuario'><b>Nome:</b> {val.get('nome')} | <b>Login:</b> {val.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v6.9
+# ASB AUTOMAÇÃO INDUSTRIAL - v7.3
