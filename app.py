@@ -7,7 +7,6 @@ from datetime import datetime
 import pandas as pd
 import time
 import pytz
-import urllib.parse 
 
 # --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (PADRÃO v13.0 / v37.0) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
@@ -149,9 +148,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO ---
+# --- 2. FUNÇÕES DE NÚCLEO E E-MAIL ---
 def obter_hora_brasilia():
-    return datetime.now(pytz.timezone('America/Sao_Paulo'))
+    return datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
+
+def enviar_email_alerta(temp):
+    try:
+        msg = MIMEText(f"ALERTA CRÍTICO: Temperatura atingiu {temp}°C em {obter_hora_brasilia()}.")
+        msg['Subject'] = '⚠️ ALERTA ASB - TEMPERATURA'
+        msg['From'] = 'asbalerta@gmail.com'
+        msg['To'] = 'asbconsultoria@gmail.com'
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login('asbalerta@gmail.com', 'sua_senha_app')
+            server.send_message(msg)
+        return True
+    except: return False
 
 @st.cache_resource
 def conectar_firebase():
@@ -175,8 +186,6 @@ if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "ciclo_ativo" not in st.session_state: st.session_state["ciclo_ativo"] = False
 if "hora_inicio_ciclo" not in st.session_state: st.session_state["hora_inicio_ciclo"] = None
-if "t_auto_temp" not in st.session_state: st.session_state["t_auto_temp"] = 5
-if "t_pisca_temp" not in st.session_state: st.session_state["t_pisca_temp"] = 2
 if "modo_operacao" not in st.session_state: st.session_state["modo_operacao"] = "MANUAL"
 
 # --- 4. LOGIN ---
@@ -203,26 +212,25 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 5. LÓGICA GLOBAL DE SEGURANÇA (v48.0) ---
-    if st.session_state["modo_operacao"] == "AUTOMÁTICO":
-        if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
-            agora_atual = time.time()
-            decorrido = (agora_atual - st.session_state["hora_inicio_ciclo"]) / 60
-            if decorrido < st.session_state["t_auto_temp"]:
-                est_calc = "ON" if (int(agora_atual) // st.session_state["t_pisca_temp"]) % 2 == 0 else "OFF"
-                if st.session_state.get("last_auto_state") != est_calc:
-                    db.reference("controle/led").set(est_calc)
-                    st.session_state["last_auto_state"] = est_calc
-            else:
-                db.reference("controle/led").set("OFF")
-                st.session_state["ciclo_ativo"] = False
+    # --- 5. LÓGICA DE SEGURANÇA ---
+    if st.session_state["modo_operacao"] == "AUTOMÁTICO" and st.session_state["ciclo_ativo"]:
+        agora = time.time()
+        decorrido = (agora - st.session_state["hora_inicio_ciclo"]) / 60
+        if decorrido < st.session_state.get("t_auto_temp", 5):
+            est = "ON" if (int(agora) // st.session_state.get("t_pisca_temp", 2)) % 2 == 0 else "OFF"
+            if st.session_state.get("last_s") != est:
+                db.reference("controle/led").set(est)
+                st.session_state["last_s"] = est
+        else:
+            db.reference("controle/led").set("OFF")
+            st.session_state["ciclo_ativo"] = False
 
-    # --- 6. BARRA LATERAL ---
+    # --- 6. MENU ---
     st.sidebar.title("MENU PRINCIPAL")
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Selecione:", opts)
-    if st.sidebar.button("Sair do Sistema"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Sair"): st.session_state["logado"] = False; st.rerun()
 
     # --- 7. TELAS ---
     if menu == "🏠 Home":
@@ -232,75 +240,65 @@ else:
         with col_h1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Controle e monitoramento em nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
         with col_h2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Telemetria</h3><p>Análise de dados industriais e sensores.</p></div>""", unsafe_allow_html=True)
         with col_h3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Histórico completo de auditoria e logs.</p></div>""", unsafe_allow_html=True)
-        if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "🕹️ Acionamento":
         st.header("Painel de Comando de Ativos")
-        st.session_state["modo_operacao"] = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
-        status_led = db.reference("controle/led").get()
-        
+        st.session_state["modo_operacao"] = st.radio("Modo:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
+        status = db.reference("controle/led").get()
         if st.session_state["modo_operacao"] == "MANUAL":
-            col_m1, col_m0, col_m2 = st.columns(3)
-            with col_m1:
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🟢' if status_led == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
-                if st.button("LIGAR ATIVO"): db.reference("controle/led").set("ON"); st.rerun()
-                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_led == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
-            with col_m0:
-                st.markdown("<p style='text-align:center; font-size:25px;'>💤</p>", unsafe_allow_html=True)
+            c1, c0, c2 = st.columns(3)
+            with c1:
+                st.write(f"Status: {'🟢' if status == 'ON' else '⚪'}")
+                if st.button("LIGAR"): db.reference("controle/led").set("ON"); st.rerun()
+                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+            with c0:
+                st.write("Status: 💤")
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); st.rerun()
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
-            with col_m2:
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🔴' if status_led == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
-                if st.button("DESLIGAR ATIVO"): db.reference("controle/led").set("OFF"); st.rerun()
-                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
-        
+            with c2:
+                st.write(f"Status: {'🔴' if status == 'OFF' else '⚪'}")
+                if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); st.rerun()
+                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         else:
-            st.info("🤖 MODO AUTOMÁTICO ATIVO")
+            st.info("🤖 MODO AUTOMÁTICO")
             c_a1, c_a2 = st.columns(2)
-            with c_a1: st.session_state["t_auto_temp"] = st.number_input("Tempo de Ciclo (min)", value=st.session_state["t_auto_temp"])
-            with c_a2: st.session_state["t_pisca_temp"] = st.number_input("Velocidade Pisca (seg)", value=st.session_state["t_pisca_temp"])
+            st.session_state["t_auto_temp"] = c_a1.number_input("Minutos", value=5)
+            st.session_state["t_pisca_temp"] = c_a2.number_input("Segundos", value=2)
             if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR CICLO"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
+                if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
             else:
-                if st.button("⏹️ PARAR OPERAÇÃO"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
+                if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
                 restante = st.session_state["t_auto_temp"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
-                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
+                st.success(f"Tempo: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
         st.header("Monitoramento de Sensores")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
+        if t > 45: enviar_email_alerta(t); st.error("⚠️ ALERTA ENVIADO!")
         pct_t, pct_u = min(max((t/60)*100, 0), 100), min(max(u, 0), 100)
         col_s1, col_s2 = st.columns(2)
-        with col_s1: 
-            st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
-        with col_s2: 
-            st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col_s1: st.markdown(f'''<div class="gauge-card">Temp (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col_s2: st.markdown(f'''<div class="gauge-card">Umid (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         if st.button("🔄 REFRESH"): st.rerun()
-        if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "📊 Relatórios":
         st.header("Histórico Logístico")
+        if st.button("🗑️ LIMPAR REGISTROS"): db.reference("historico_acoes").delete(); st.rerun()
         hist = db.reference("historico_acoes").get()
         if hist:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-            for key in reversed(list(hist.keys())):
-                i = hist[key]
-                st.markdown(f'<div class="msg-balao"><b>Usuário:</b> {i.get("usuario")}<br><b>Ação:</b> {i.get("acao")}<br><small>{i.get("data")}</small></div>', unsafe_allow_html=True)
+            for k in reversed(list(hist.keys())):
+                i = hist[k]
+                st.markdown(f'<div class="msg-balao"><b>{i.get("usuario")}:</b> {i.get("acao")}<br><small>{i.get("data")}</small></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "🛠️ Diagnóstico":
-        st.header("Estado de Rede e Sistema")
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            if st.button("🔍 PING REDE"):
-                db.reference("sensor/temperatura").delete(); time.sleep(4)
-                st.session_state["ping"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
-            if st.session_state.get("ping") == "ON": st.success("ONLINE")
-        with col_d2:
-            if st.button("⚠️ RESET ESP32"):
-                db.reference("controle/sistema").set("RESET")
-                st.warning("Comando de Reset enviado ao Hardware.")
-        if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
+        st.header("Estado de Rede e Hardware")
+        c_d1, c_d2 = st.columns(2)
+        if c_d1.button("🔍 PING REDE"):
+            db.reference("sensor/temperatura").delete(); time.sleep(4)
+            st.session_state["ping"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
+        if c_d2.button("⚠️ RESET ESP32"): db.reference("controle/sistema").set("RESET"); st.warning("Comando enviado.")
+        if st.session_state.get("ping") == "ON": st.success("SISTEMA ONLINE")
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v48.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v51.0
