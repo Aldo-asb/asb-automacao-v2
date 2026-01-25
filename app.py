@@ -9,7 +9,7 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (PADRÃO v13.0 / v37.0 - CORREÇÃO DE ALINHAMENTO) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (RESTRICT v13.0 IDENTITY) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -29,7 +29,7 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
-    /* PADRONIZAÇÃO DOS BOTÕES PARA ALINHAMENTO PERFEITO */
+    /* BOTÕES COM TAMANHO PADRONIZADO v13.0 */
     div.stButton > button:first-child {
         width: 100%;
         height: 4.5em;
@@ -38,10 +38,6 @@ st.markdown("""
         color: white;
         border-radius: 10px;
         border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 10px;
     }
 
     .card-usuario { 
@@ -63,6 +59,7 @@ st.markdown("""
         font-size: 22px; 
     }
     
+    /* CARDS HOME - IDENTIDADE v13.0 */
     .home-card { 
         background-color: #ffffff; 
         padding: 25px; 
@@ -72,7 +69,9 @@ st.markdown("""
         text-align: center; 
         height: 100%; 
     }
+    .home-icon { font-size: 40px; margin-bottom: 15px; }
 
+    /* CARDS MEDIÇÃO - TAMANHO v13.0 */
     .gauge-card { 
         background: white; 
         padding: 30px; 
@@ -81,8 +80,14 @@ st.markdown("""
         text-align: center; 
         border: 1px solid #f0f0f0; 
     }
+    .gauge-value { 
+        font-size: 50px; 
+        font-weight: 800; 
+        color: #333; 
+        margin: 15px 0; 
+    }
     
-    /* BARRAS DE STATUS 8PX COM ALINHAMENTO FIXO */
+    /* BARRAS DE 8PX v13.0 */
     .moving-bar-container { 
         width: 100%; 
         height: 8px; 
@@ -90,7 +95,7 @@ st.markdown("""
         border-radius: 10px; 
         overflow: hidden; 
         position: relative; 
-        margin-top: 15px; 
+        margin-top: 10px; 
     }
     
     .bar-on { 
@@ -152,13 +157,13 @@ def registrar_evento(acao, manual=False):
         if st.session_state.get("email_ativo", True) or manual:
             remetente, senha = st.secrets.get("email_user"), st.secrets.get("email_password")
             if remetente and senha:
-                msg = MIMEText(f"SISTEMA ASB AUTOMACAO\n\nUsuario: {usuario}\nAcao: {acao}\nData/Hora: {agora_f}")
+                msg = MIMEText(f"SISTEMA ASB AUTOMAÇÃO\n\nUsuário: {usuario}\nAção: {acao}\nData/Hora: {agora_f}")
                 msg['Subject'] = f"LOG ASB: {acao}"; msg['From'] = remetente; msg['To'] = "asbautomacao@gmail.com"
                 with smtplib.SMTP('smtp.gmail.com', 587) as s:
                     s.starttls(); s.login(remetente, senha); s.send_message(msg)
     except: pass
 
-# --- 3. INICIALIZAÇÃO E LOGIN ---
+# --- 3. ESTADOS E LOGIN ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
@@ -168,6 +173,7 @@ if "ciclo_ativo" not in st.session_state: st.session_state["ciclo_ativo"] = Fals
 if not st.session_state["logado"]:
     conectar_firebase()
     st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitulo-asb'>Plataforma Integrada IoT</div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
         u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
@@ -187,7 +193,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 4. LÓGICA AUTO ---
+    # --- 4. LÓGICA MODO AUTOMÁTICO ---
     if st.session_state["modo_operacao"] == "AUTOMÁTICO" and st.session_state["ciclo_ativo"]:
         agora_seg = time.time()
         decorrido = (agora_seg - st.session_state.get("hora_inicio_ciclo", 0)) / 60
@@ -198,30 +204,28 @@ else:
         else:
             db.reference("controle/led").set("OFF"); st.session_state["ciclo_ativo"] = False
 
-    # --- 5. MENU ---
+    # --- 5. MENU LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
-    if st.sidebar.button("Sair"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- 6. TELAS ---
+    # --- 6. TELAS (RESTRICTED TO v13 VISUAL) ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-        st.markdown("<div class='subtitulo-asb'>Centro de Controle de Operações</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown("""<div class='home-card'><h3>Supervisão IoT</h3><p>Tempo real.</p></div>""", unsafe_allow_html=True)
-        with c2: st.markdown("""<div class='home-card'><h3>Análise</h3><p>Telemetria.</p></div>""", unsafe_allow_html=True)
-        with c3: st.markdown("""<div class='home-card'><h3>Segurança</h3><p>Auditoria.</p></div>""", unsafe_allow_html=True)
+        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
+        with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Telemetria avançada.</p></div>""", unsafe_allow_html=True)
+        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
 
     elif menu == "🕹️ Acionamento":
-        st.header("Painel de Controle")
-        st.session_state["modo_operacao"] = st.radio("Selecione:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
+        st.header("Controle de Ativos")
+        st.session_state["modo_operacao"] = st.radio("Modo:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
         status_real = db.reference("controle/led").get()
         
         if st.session_state["modo_operacao"] == "MANUAL":
-            # ALINHAMENTO CORRIGIDO EM 3 COLUNAS IGUAIS
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
@@ -238,26 +242,26 @@ else:
         else:
             st.info("🤖 MODO AUTOMÁTICO ATIVO")
             ca1, ca2 = st.columns(2)
-            st.session_state["t_auto_v"] = ca1.number_input("Minutos", value=5)
-            st.session_state["t_pisca_v"] = ca2.number_input("Segundos", value=2)
+            st.session_state["t_auto_v"] = ca1.number_input("Tempo Ciclo (min)", value=5)
+            st.session_state["t_pisca_v"] = ca2.number_input("Velocidade Pisca (seg)", value=2)
             if not st.session_state["ciclo_ativo"]:
                 if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
             else:
                 if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
-                st.success(f"⚡ Operando... {((time.time() - st.session_state['hora_inicio_ciclo'])/60):.2f} min"); time.sleep(1); st.rerun()
+                restante = st.session_state["t_auto_v"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
+                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
-        st.header("Sensores")
+        st.header("Telemetria Industrial")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
-        if t > 45 and st.session_state["email_ativo"]: registrar_evento(f"ALERTA TEMP: {t}C")
-        pct_t, pct_u = min(max((t/60)*100, 0), 100), min(max(u, 0), 100)
+        pct_t, pct_u = min(max((t / 60) * 100, 0), 100), min(max(u, 0), 100)
         col1, col2 = st.columns(2)
         with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         if st.button("🔄 REFRESH"): st.rerun()
 
     elif menu == "📊 Relatórios":
-        st.header("Logs")
+        st.header("Histórico de Atividades")
         if st.button("🗑️ LIMPAR HISTÓRICO"): db.reference("historico_acoes").delete(); st.rerun()
         logs = db.reference("historico_acoes").get()
         if logs:
@@ -268,24 +272,24 @@ else:
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "🛠️ Diagnóstico":
-        st.header("Hardware")
+        st.header("Status de Rede")
         c1, c2 = st.columns(2)
-        if c1.button("🔍 PING"):
+        if c1.button("🔍 EXECUTAR PING"):
             db.reference("sensor/temperatura").delete(); time.sleep(4)
             st.session_state["net_status"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
-        if c2.button("⚠️ RESET"): db.reference("controle/sistema").set("RESET"); st.warning("Reset enviado.")
-        if st.session_state.get("net_status") == "ON": st.markdown("<div class='status-ok'>✅ ONLINE</div>", unsafe_allow_html=True)
+        if c2.button("⚠️ REBOOT"): db.reference("controle/sistema").set("RESET"); st.warning("Comando enviado.")
+        if st.session_state.get("net_status") == "ON": st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
-        st.header("Usuários")
+        st.header("Gerenciamento de Operadores")
         with st.form("cad_u"):
             n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
-                st.success("Cadastrado!"); st.rerun()
+                st.success("Operador cadastrado!"); st.rerun()
         users = db.reference("usuarios_autorizados").get()
         if users:
             for k, v in users.items():
                 st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v54.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v55.0
