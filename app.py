@@ -9,7 +9,7 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (v13.0 / v37.0 - MANUTENÇÃO ABSOLUTA) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (PADRÃO v13.0 / v37.0) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -59,7 +59,7 @@ st.markdown("""
         background-color: #e8f5e9; 
         font-size: 22px; 
     }
-
+    
     .home-card { 
         background-color: #ffffff; 
         padding: 25px; 
@@ -120,6 +120,28 @@ st.markdown("""
         border-radius: 10px; 
     }
 
+    .chat-container { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 10px; 
+        background-color: #e5ddd5; 
+        padding: 20px; 
+        border-radius: 15px; 
+        max-height: 400px; 
+        overflow-y: auto; 
+        margin-bottom: 20px; 
+    }
+    .msg-balao { 
+        max-width: 70%; 
+        padding: 10px 15px; 
+        border-radius: 15px; 
+        font-family: sans-serif; 
+        box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); 
+        background-color: #ffffff; 
+        margin-bottom: 5px; 
+        border-left: 5px solid #00458d;
+    }
+
     @keyframes moveRight {
         0% { background-position: 200% 0; }
         100% { background-position: 0 0; }
@@ -150,6 +172,7 @@ def conectar_firebase():
 
 # --- 3. INICIALIZAÇÃO DE ESTADOS ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
+if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "ciclo_ativo" not in st.session_state: st.session_state["ciclo_ativo"] = False
 if "hora_inicio_ciclo" not in st.session_state: st.session_state["hora_inicio_ciclo"] = None
 if "t_auto_temp" not in st.session_state: st.session_state["t_auto_temp"] = 5
@@ -180,7 +203,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 5. LÓGICA GLOBAL (v45.0 - BLOQUEIO DE SEGURANÇA) ---
+    # --- 5. LÓGICA GLOBAL DE SEGURANÇA (v47.0) ---
     if st.session_state["modo_operacao"] == "AUTOMÁTICO":
         if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
             agora_atual = time.time()
@@ -194,11 +217,12 @@ else:
                 db.reference("controle/led").set("OFF")
                 st.session_state["ciclo_ativo"] = False
 
-    # --- 6. MENU ---
+    # --- 6. BARRA LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
+    if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Selecione:", opts)
-    if st.sidebar.button("Sair"): st.session_state["logado"] = False; st.rerun()
+    if st.sidebar.button("Sair do Sistema"): st.session_state["logado"] = False; st.rerun()
 
     # --- 7. TELAS ---
     if menu == "🏠 Home":
@@ -211,6 +235,7 @@ else:
 
     elif menu == "🕹️ Acionamento":
         st.header("Painel de Comando de Ativos")
+        # Seletor de Modo
         st.session_state["modo_operacao"] = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
         
         status_led = db.reference("controle/led").get()
@@ -218,38 +243,27 @@ else:
         if st.session_state["modo_operacao"] == "MANUAL":
             col_m1, col_m0, col_m2 = st.columns(3)
             with col_m1:
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{'🟢' if status_led == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
-                if st.button("LIGAR ATIVO"): 
-                    db.reference("controle/led").set("ON")
-                    st.rerun()
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🟢' if status_led == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                if st.button("LIGAR ATIVO"): db.reference("controle/led").set("ON"); st.rerun()
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_led == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with col_m0:
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>💤</p>", unsafe_allow_html=True)
-                if st.button("REPOUSO"): 
-                    db.reference("controle/led").set("REPOUSO")
-                    st.rerun()
+                st.markdown("<p style='text-align:center; font-size:25px;'>💤</p>", unsafe_allow_html=True)
+                if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); st.rerun()
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
             with col_m2:
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{'🔴' if status_led == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
-                if st.button("DESLIGAR ATIVO"): 
-                    db.reference("controle/led").set("OFF")
-                    st.rerun()
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🔴' if status_led == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
+                if st.button("DESLIGAR ATIVO"): db.reference("controle/led").set("OFF"); st.rerun()
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         
         else: # AUTOMÁTICO
-            st.info("🤖 MODO AUTOMÁTICO ATIVO")
+            st.info("🤖 MODO AUTOMÁTICO ATIVO - Comandos manuais bloqueados.")
             c_a1, c_a2 = st.columns(2)
             with c_a1: st.session_state["t_auto_temp"] = st.number_input("Tempo de Ciclo (min)", value=st.session_state["t_auto_temp"])
             with c_a2: st.session_state["t_pisca_temp"] = st.number_input("Velocidade Pisca (seg)", value=st.session_state["t_pisca_temp"])
             if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR CICLO"): 
-                    st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time()
-                    st.rerun()
+                if st.button("▶️ INICIAR CICLO"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
             else:
-                if st.button("⏹️ PARAR OPERAÇÃO"): 
-                    st.session_state["ciclo_ativo"] = False
-                    db.reference("controle/led").set("OFF")
-                    st.rerun()
+                if st.button("⏹️ PARAR OPERAÇÃO"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
                 restante = st.session_state["t_auto_temp"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
                 st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
@@ -267,10 +281,14 @@ else:
 
     elif menu == "📊 Relatórios":
         st.header("Histórico Logístico")
+        if st.button("🗑️ LIMPAR REGISTROS"): db.reference("historico_acoes").delete(); st.rerun()
         hist = db.reference("historico_acoes").get()
         if hist:
-            for k in reversed(list(hist.keys())):
-                i = hist[k]; st.write(f"{i.get('data')} - {i.get('usuario')}: {i.get('acao')}")
+            st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+            for key in reversed(list(hist.keys())):
+                i = hist[key]
+                st.markdown(f'<div class="msg-balao"><b>Usuário:</b> {i.get("usuario")}<br><b>Ação:</b> {i.get("acao")}<br><small>{i.get("data")}</small></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "🛠️ Diagnóstico":
@@ -281,4 +299,4 @@ else:
         if st.session_state.get("ping") == "ON": st.success("ONLINE")
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v45.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v47.0
