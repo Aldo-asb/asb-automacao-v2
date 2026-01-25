@@ -203,7 +203,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 5. LÓGICA GLOBAL DE SEGURANÇA (v47.0) ---
+    # --- 5. LÓGICA GLOBAL DE SEGURANÇA (v48.0) ---
     if st.session_state["modo_operacao"] == "AUTOMÁTICO":
         if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
             agora_atual = time.time()
@@ -227,6 +227,7 @@ else:
     # --- 7. TELAS ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+        st.markdown("<div class='subtitulo-asb'>Bem-vindo ao Centro de Controle de Operações</div>", unsafe_allow_html=True)
         col_h1, col_h2, col_h3 = st.columns(3)
         with col_h1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Controle e monitoramento em nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
         with col_h2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Telemetria</h3><p>Análise de dados industriais e sensores.</p></div>""", unsafe_allow_html=True)
@@ -235,9 +236,7 @@ else:
 
     elif menu == "🕹️ Acionamento":
         st.header("Painel de Comando de Ativos")
-        # Seletor de Modo
         st.session_state["modo_operacao"] = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
-        
         status_led = db.reference("controle/led").get()
         
         if st.session_state["modo_operacao"] == "MANUAL":
@@ -255,8 +254,8 @@ else:
                 if st.button("DESLIGAR ATIVO"): db.reference("controle/led").set("OFF"); st.rerun()
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         
-        else: # AUTOMÁTICO
-            st.info("🤖 MODO AUTOMÁTICO ATIVO - Comandos manuais bloqueados.")
+        else:
+            st.info("🤖 MODO AUTOMÁTICO ATIVO")
             c_a1, c_a2 = st.columns(2)
             with c_a1: st.session_state["t_auto_temp"] = st.number_input("Tempo de Ciclo (min)", value=st.session_state["t_auto_temp"])
             with c_a2: st.session_state["t_pisca_temp"] = st.number_input("Velocidade Pisca (seg)", value=st.session_state["t_pisca_temp"])
@@ -281,7 +280,6 @@ else:
 
     elif menu == "📊 Relatórios":
         st.header("Histórico Logístico")
-        if st.button("🗑️ LIMPAR REGISTROS"): db.reference("historico_acoes").delete(); st.rerun()
         hist = db.reference("historico_acoes").get()
         if hist:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -292,11 +290,17 @@ else:
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "🛠️ Diagnóstico":
-        st.header("Estado de Rede")
-        if st.button("🔍 PING"):
-            db.reference("sensor/temperatura").delete(); time.sleep(4)
-            st.session_state["ping"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
-        if st.session_state.get("ping") == "ON": st.success("ONLINE")
+        st.header("Estado de Rede e Sistema")
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            if st.button("🔍 PING REDE"):
+                db.reference("sensor/temperatura").delete(); time.sleep(4)
+                st.session_state["ping"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
+            if st.session_state.get("ping") == "ON": st.success("ONLINE")
+        with col_d2:
+            if st.button("⚠️ RESET ESP32"):
+                db.reference("controle/sistema").set("RESET")
+                st.warning("Comando de Reset enviado ao Hardware.")
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v47.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v48.0
