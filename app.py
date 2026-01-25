@@ -126,6 +126,8 @@ if "email_ativo" not in st.session_state:
     st.session_state["email_ativo"] = True
 if "ciclo_ativo" not in st.session_state:
     st.session_state["ciclo_ativo"] = False
+if "hora_inicio_ciclo" not in st.session_state:
+    st.session_state["hora_inicio_ciclo"] = None
 
 if not st.session_state["logado"]:
     conectar_firebase()
@@ -181,7 +183,7 @@ else:
         with c3:
             st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
 
-    # --- TELA: ACIONAMENTO (v23.1 - LED FÍSICO COM TEXTO BASE v13.0) ---
+    # --- TELA: ACIONAMENTO (v26.0 - CICLO DE 5 MINUTOS + ESPERA) ---
     elif menu == "🕹️ Acionamento":
         st.header("Controle de Ativos")
         
@@ -218,36 +220,51 @@ else:
             with col_t2:
                 t_pisca = st.number_input("Velocidade Pisca (seg)", min_value=1, value=2)
             
+            agora_real = obter_hora_brasilia()
+            # Reset automático ao virar a hora (minuto 0)
+            if agora_real.minute == 0 and not st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"] is not None:
+                st.session_state["hora_inicio_ciclo"] = None
+
             if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR CICLO"):
-                    st.session_state["ciclo_ativo"] = True
-                    registrar_evento("INICIOU CICLO AUTO")
-                    st.rerun()
+                if st.session_state["hora_inicio_ciclo"] is None:
+                    if st.button("▶️ INICIAR CICLO"):
+                        st.session_state["ciclo_ativo"] = True
+                        st.session_state["hora_inicio_ciclo"] = time.time()
+                        registrar_evento("INICIOU CICLO AUTO")
+                        st.rerun()
+                else:
+                    st.info("⏳ CICLO FINALIZADO. AGUARDANDO PRÓXIMA HORA.")
+                    if st.button("🔄 RESETAR MANUALMENTE"):
+                        st.session_state["hora_inicio_ciclo"] = None
+                        st.rerun()
             else:
                 if st.button("⏹️ PARAR CICLO"):
                     st.session_state["ciclo_ativo"] = False
+                    st.session_state["hora_inicio_ciclo"] = None
                     db.reference("controle/led").set("OFF")
                     st.rerun()
                 
-                agora = obter_hora_brasilia()
-                if agora.minute < t_trabalho:
-                    # LÓGICA DE PULSO PARA O LED FÍSICO
-                    estado = "ON" if (agora.second // t_pisca) % 2 == 0 else "OFF"
+                tempo_passado = (time.time() - st.session_state["hora_inicio_ciclo"]) / 60
+                
+                if tempo_passado < t_trabalho:
+                    agora_seg = int(time.time())
+                    estado = "ON" if (agora_seg // t_pisca) % 2 == 0 else "OFF"
                     db.reference("controle/led").set(estado)
                     
                     if estado == "ON":
-                        st.success("⚡ CICLO ATIVO: PULSANDO (ON)")
+                        st.success(f"⚡ CICLO ATIVO: PULSANDO (ON) - Faltam: {t_trabalho - tempo_passado:.1f} min")
                     else:
-                        st.warning("⚡ CICLO ATIVO: PULSANDO (OFF)")
+                        st.warning(f"⚡ CICLO ATIVO: PULSANDO (OFF) - Faltam: {t_trabalho - tempo_passado:.1f} min")
                     time.sleep(1)
                     st.rerun()
                 else:
                     db.reference("controle/led").set("OFF")
-                    st.info("⏳ CICLO FINALIZADO. AGUARDANDO PRÓXIMA HORA.")
-                    time.sleep(5)
+                    st.session_state["ciclo_ativo"] = False
+                    st.success("✅ TEMPO DE TRABALHO CONCLUÍDO.")
+                    time.sleep(2)
                     st.rerun()
 
-    # --- TELA: MEDIÇÃO (v13.0 + REFRESH) ---
+    # --- TELA: MEDIÇÃO (v13.0 + BOTÃO REFRESH) ---
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
         
@@ -335,4 +352,4 @@ else:
             for k, v in users.items():
                 st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')} | Desde: {v.get('data')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v23.1
+# ASB AUTOMAÇÃO INDUSTRIAL - v26.0
