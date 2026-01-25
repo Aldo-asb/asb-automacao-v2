@@ -9,13 +9,25 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (BASE v13.0 - MANTIDA) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (v13.0 - MANUTENÇÃO ABSOLUTA DO PADRÃO) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
     <style>
-    .titulo-asb { color: #00458d; font-size: 55px; font-weight: bold; text-align: center; margin-top: 40px; border-bottom: 3px solid #00458d; }
-    .subtitulo-asb { color: #555; font-size: 20px; text-align: center; margin-bottom: 30px; }
+    .titulo-asb { 
+        color: #00458d; 
+        font-size: 55px; 
+        font-weight: bold; 
+        text-align: center; 
+        margin-top: 40px; 
+        border-bottom: 3px solid #00458d; 
+    }
+    .subtitulo-asb { 
+        color: #555; 
+        font-size: 20px; 
+        text-align: center; 
+        margin-bottom: 30px; 
+    }
     
     /* BOTÕES COM TAMANHO PADRONIZADO v8.7 - PRESERVADO */
     div.stButton > button:first-child {
@@ -28,32 +40,98 @@ st.markdown("""
         border: none;
     }
 
-    .card-usuario { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #00458d; }
+    .card-usuario { 
+        background-color: #f0f2f6; 
+        padding: 15px; 
+        border-radius: 10px; 
+        margin-bottom: 10px; 
+        border-left: 5px solid #00458d; 
+    }
     
     /* STATUS DE CONEXÃO DETERMINADO */
-    .status-ok { color: #28a745; font-weight: bold; padding: 20px; border: 2px solid #28a745; border-radius: 8px; text-align: center; background-color: #e8f5e9; font-size: 22px; }
-    .status-erro { color: #dc3545; font-weight: bold; padding: 20px; border: 2px solid #dc3545; border-radius: 8px; text-align: center; background-color: #ffebee; font-size: 22px; }
+    .status-ok { 
+        color: #28a745; 
+        font-weight: bold; 
+        padding: 20px; 
+        border: 2px solid #28a745; 
+        border-radius: 8px; 
+        text-align: center; 
+        background-color: #e8f5e9; 
+        font-size: 22px; 
+    }
+    .status-erro { 
+        color: #dc3545; 
+        font-weight: bold; 
+        padding: 20px; 
+        border: 2px solid #dc3545; 
+        border-radius: 8px; 
+        text-align: center; 
+        background-color: #ffebee; 
+        font-size: 22px; 
+    }
     
     /* CARDS HOME */
-    .home-card { background-color: #ffffff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #00458d; text-align: center; height: 100%; }
-    .home-icon { font-size: 40px; margin-bottom: 15px; }
+    .home-card { 
+        background-color: #ffffff; 
+        padding: 25px; 
+        border-radius: 15px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        border-top: 5px solid #00458d; 
+        text-align: center; 
+        height: 100%; 
+    }
+    .home-icon { 
+        font-size: 40px; 
+        margin-bottom: 15px; 
+    }
 
     /* CARDS MEDIÇÃO ABAULADOS */
-    .gauge-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border: 1px solid #f0f0f0; }
-    .gauge-value { font-size: 50px; font-weight: 800; color: #333; margin: 15px 0; }
+    .gauge-card { 
+        background: white; 
+        padding: 30px; 
+        border-radius: 20px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        text-align: center; 
+        border: 1px solid #f0f0f0; 
+    }
+    .gauge-value { 
+        font-size: 50px; 
+        font-weight: 800; 
+        color: #333; 
+        margin: 15px 0; 
+    }
     
     /* BARRAS AJUSTADAS: 8PX E ANIMAÇÃO DE MOVIMENTO */
-    .moving-bar-container { width: 100%; height: 8px; background: #eee; border-radius: 10px; overflow: hidden; position: relative; margin-top: 10px; }
+    .moving-bar-container { 
+        width: 100%; 
+        height: 8px; 
+        background: #eee; 
+        border-radius: 10px; 
+        overflow: hidden; 
+        position: relative; 
+        margin-top: 10px; 
+    }
     
     .bar-on { 
-        height: 100%; width: 100%; background: linear-gradient(90deg, #28a745, #85e085, #28a745); 
-        background-size: 200% 100%; animation: moveRight 2s linear infinite; 
+        height: 100%; 
+        width: 100%; 
+        background: linear-gradient(90deg, #28a745, #85e085, #28a745); 
+        background-size: 200% 100%; 
+        animation: moveRight 2s linear infinite; 
     }
     .bar-off { 
-        height: 100%; width: 100%; background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); 
-        background-size: 200% 100%; animation: moveRight 2s linear infinite; 
+        height: 100%; 
+        width: 100%; 
+        background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); 
+        background-size: 200% 100%; 
+        animation: moveRight 2s linear infinite; 
     }
-    .bar-inativa { height: 100%; width: 100%; background: #eee; border-radius: 10px; }
+    .bar-inativa { 
+        height: 100%; 
+        width: 100%; 
+        background: #eee; 
+        border-radius: 10px; 
+    }
 
     @keyframes moveRight {
         0% { background-position: 200% 0; }
@@ -61,21 +139,44 @@ st.markdown("""
     }
 
     /* ANIMAÇÃO PARA A BOLINHA PISCAR */
-    .blink { animation: blinker 1.2s linear infinite; display: inline-block; }
+    .blink { 
+        animation: blinker 1.2s linear infinite; 
+        display: inline-block; 
+    }
     @keyframes blinker { 50% { opacity: 0; } }
 
     /* CHAT/LOGS */
-    .chat-container { display: flex; flex-direction: column; gap: 10px; background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
-    .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-family: sans-serif; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); background-color: #ffffff; margin-bottom: 5px; }
+    .chat-container { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 10px; 
+        background-color: #e5ddd5; 
+        padding: 20px; 
+        border-radius: 15px; 
+        max-height: 400px; 
+        overflow-y: auto; 
+        margin-bottom: 20px; 
+    }
+    .msg-balao { 
+        max-width: 70%; 
+        padding: 10px 15px; 
+        border-radius: 15px; 
+        font-family: sans-serif; 
+        box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); 
+        background-color: #ffffff; 
+        margin-bottom: 5px; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO (INTEGRAL v13.0) ---
+# --- 2. FUNÇÕES DE NÚCLEO E CONECTIVIDADE (v13.0) ---
 def obter_hora_brasilia():
+    """Retorna o horário atual ajustado para o fuso de Brasília."""
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
 @st.cache_resource
 def conectar_firebase():
+    """Estabelece a conexão com o banco de dados Firebase Realtime."""
     if not firebase_admin._apps:
         try:
             cred_dict = {
@@ -86,26 +187,35 @@ def conectar_firebase():
                 "token_uri": st.secrets.get("token_uri")
             }
             cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred, {'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'})
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'
+            })
             return True
         except Exception as e:
-            st.error(f"Erro Conexão: {e}")
+            st.error(f"Erro na Conexão com Firebase: {e}")
             return False
     return True
 
 def registrar_evento(acao, manual=False):
+    """Registra logs no Firebase e envia e-mail de notificação se ativo."""
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
-        db.reference("historico_acoes").push({"data": agora, "usuario": usuario, "acao": acao})
+        # Registro no Banco de Dados
+        db.reference("historico_acoes").push({
+            "data": agora, 
+            "usuario": usuario, 
+            "acao": acao
+        })
         
+        # Lógica de E-mail
         if st.session_state.get("email_ativo", True) or manual:
             remetente = st.secrets.get("email_user")
             senha = st.secrets.get("email_password")
             
             if remetente and senha:
                 msg = MIMEText(f"SISTEMA ASB AUTOMACAO\n\nUsuario: {usuario}\nAcao: {acao}\nData/Hora: {agora}")
-                msg['Subject'] = f"LOG: {acao}"
+                msg['Subject'] = f"LOG DE SISTEMA: {acao}"
                 msg['From'] = remetente
                 msg['To'] = "asbautomacao@gmail.com"
                 
@@ -114,24 +224,26 @@ def registrar_evento(acao, manual=False):
                 server.login(remetente, senha)
                 server.sendmail(remetente, "asbautomacao@gmail.com", msg.as_string())
                 server.quit()
-    except:
+    except Exception as e:
         pass
 
-# --- 3. ESTADOS DE SESSÃO E PERSISTÊNCIA ---
+# --- 3. INICIALIZAÇÃO DE ESTADOS DE SESSÃO (PERSISTÊNCIA) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "is_admin" not in st.session_state:
     st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state:
     st.session_state["email_ativo"] = True
-
-# NOVAS VARIÁVEIS PARA O CICLO AUTOMÁTICO (SOLICITAÇÃO RECENTE)
 if "ciclo_ativo" not in st.session_state:
     st.session_state["ciclo_ativo"] = False
 if "hora_inicio_ciclo" not in st.session_state:
     st.session_state["hora_inicio_ciclo"] = None
+if "t_auto_temp" not in st.session_state:
+    st.session_state["t_auto_temp"] = 5
+if "t_pisca_temp" not in st.session_state:
+    st.session_state["t_pisca_temp"] = 2
 
-# --- 4. LÓGICA DE LOGIN (IDENTICA v13.0) ---
+# --- 4. CONTROLE DE ACESSO E TELA DE LOGIN ---
 if not st.session_state["logado"]:
     conectar_firebase()
     st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
@@ -158,201 +270,217 @@ if not st.session_state["logado"]:
                             st.session_state["user_nome"] = user_data['nome']
                             st.session_state["is_admin"] = False
                             st.rerun()
-                st.error("Credenciais inválidas.")
+                st.error("Credenciais inválidas. Tente novamente.")
 
 else:
     conectar_firebase()
     
-    # --- PROCESSAMENTO DE BACKGROUND (v30.1) ---
-    # Garante que o ciclo rode em qualquer tela, mas só termina se atingir o tempo.
+    # --- 5. PROCESSAMENTO DO CICLO AUTOMÁTICO (CORREÇÃO DE PERSISTÊNCIA v34.0) ---
+    # Roda sempre que o script é carregado, garantindo operação em background.
     if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
-        tempo_passado = (time.time() - st.session_state["hora_inicio_ciclo"]) / 60
-        t_trab = st.session_state.get("t_auto_temp", 5)
-        t_pisc = st.session_state.get("t_pisca_temp", 2)
+        agora_atual = time.time()
+        tempo_decorrido = (agora_atual - st.session_state["hora_inicio_ciclo"]) / 60
         
-        if tempo_passado < t_trab:
-            agora_seg = int(time.time())
-            estado = "ON" if (agora_seg // t_pisc) % 2 == 0 else "OFF"
-            db.reference("controle/led").set(estado)
+        if tempo_decorrido < st.session_state["t_auto_temp"]:
+            # Lógica de pisca baseada no tempo real (segundos)
+            estado_calculado = "ON" if (int(agora_atual) // st.session_state["t_pisca_temp"]) % 2 == 0 else "OFF"
+            
+            # Atualiza Firebase apenas se houver mudança de estado (otimização)
+            if st.session_state.get("last_auto_state") != estado_calculado:
+                db.reference("controle/led").set(estado_calculado)
+                st.session_state["last_auto_state"] = estado_calculado
         else:
+            # Finaliza o ciclo por tempo esgotado
             db.reference("controle/led").set("OFF")
             st.session_state["ciclo_ativo"] = False
+            registrar_evento("CICLO AUTOMÁTICO FINALIZADO POR TEMPO")
 
-    # --- MENU LATERAL (v13.0) ---
+    # --- 6. BARRA LATERAL E NAVEGAÇÃO ---
+    st.sidebar.title("MENU PRINCIPAL")
     menu_opcoes = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]:
         menu_opcoes.append("👥 Gestão de Usuários")
         
-    menu = st.sidebar.radio("Navegação:", menu_opcoes)
-    st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
+    menu = st.sidebar.radio("Selecione a tela:", menu_opcoes)
     
-    if st.sidebar.button("Encerrar Sessão"): 
+    st.sidebar.markdown("---")
+    st.session_state["email_ativo"] = st.sidebar.toggle("Notificações por E-mail", value=st.session_state["email_ativo"])
+    
+    if st.sidebar.button("Sair do Sistema"): 
         st.session_state["logado"] = False
         st.rerun()
 
-    # --- TELA: HOME (v13.0) ---
+    # --- 7. RENDERIZAÇÃO DAS TELAS ---
+
+    # --- TELA: HOME ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
-        with c2:
-            st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Telemetria avançada.</p></div>""", unsafe_allow_html=True)
-        with c3:
-            st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
-
-    # --- TELA: ACIONAMENTO (v30.1 - CICLO SOBERANO) ---
-    elif menu == "🕹️ Acionamento":
-        st.header("Controle de Ativos")
+        col_h1, col_h2, col_h3 = st.columns(3)
+        with col_h1:
+            st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Controle e monitoramento em nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
+        with col_h2:
+            st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Telemetria</h3><p>Análise de dados industriais e sensores.</p></div>""", unsafe_allow_html=True)
+        with col_h3:
+            st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Histórico completo de auditoria e logs.</p></div>""", unsafe_allow_html=True)
         
-        modo = st.radio("Seletor de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
-        status_real = db.reference("controle/led").get()
+        # Se o ciclo estiver ativo, força o refresh da página para manter o processamento
+        if st.session_state["ciclo_ativo"]:
+            time.sleep(1)
+            st.rerun()
 
-        if modo == "MANUAL":
-            c1, c2 = st.columns(2)
-            with c1:
-                bola_v = "<span class='blink'>🟢</span>" if status_real == 'ON' else "⚪"
-                if st.button("LIGAR"):
+    # --- TELA: ACIONAMENTO ---
+    elif menu == "🕹️ Acionamento":
+        st.header("Painel de Comando de Ativos")
+        
+        modo_operacao = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
+        status_atual_led = db.reference("controle/led").get()
+
+        if modo_operacao == "MANUAL":
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                indicador_v = "<span class='blink'>🟢</span>" if status_atual_led == 'ON' else "⚪"
+                if st.button("LIGAR ATIVO"):
                     db.reference("controle/led").set("ON")
-                    registrar_evento("LIGOU")
+                    registrar_evento("ACIONAMENTO MANUAL: LIGADO")
                     st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{bola_v}</p>", unsafe_allow_html=True)
-                estilo_on = "bar-on" if status_real == "ON" else "bar-inativa"
-                st.markdown(f'<div class="moving-bar-container"><div class="{estilo_on}"></div></div>', unsafe_allow_html=True)
-            with c2:
-                bola_r = "<span class='blink'>🔴</span>" if status_real == 'OFF' else "⚪"
-                if st.button("DESLIGAR"):
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{indicador_v}</p>", unsafe_allow_html=True)
+                bar_style_on = "bar-on" if status_atual_led == "ON" else "bar-inativa"
+                st.markdown(f'<div class="moving-bar-container"><div class="{bar_style_on}"></div></div>', unsafe_allow_html=True)
+            
+            with col_m2:
+                indicador_r = "<span class='blink'>🔴</span>" if status_atual_led == 'OFF' else "⚪"
+                if st.button("DESLIGAR ATIVO"):
                     db.reference("controle/led").set("OFF")
-                    registrar_evento("DESLIGOU")
+                    registrar_evento("ACIONAMENTO MANUAL: DESLIGADO")
                     st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{bola_r}</p>", unsafe_allow_html=True)
-                estilo_off = "bar-off" if status_real == "OFF" else "bar-inativa"
-                st.markdown(f'<div class="moving-bar-container"><div class="{estilo_off}"></div></div>', unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{indicador_r}</p>", unsafe_allow_html=True)
+                bar_style_off = "bar-off" if status_atual_led == "OFF" else "bar-inativa"
+                st.markdown(f'<div class="moving-bar-container"><div class="{bar_style_off}"></div></div>', unsafe_allow_html=True)
         
         else: # MODO AUTOMÁTICO
-            st.info("🤖 MODO AUTOMÁTICO: Ciclo persistente até o final.")
-            col_t1, col_t2 = st.columns(2)
-            with col_t1:
-                t_trabalho = st.number_input("Tempo de Trabalho (min)", min_value=1, value=5)
-                st.session_state["t_auto_temp"] = t_trabalho
-            with col_t2:
-                t_pisca = st.number_input("Velocidade Pisca (seg)", min_value=1, value=2)
-                st.session_state["t_pisca_temp"] = t_pisca
+            st.info("🤖 MODO AUTOMÁTICO: O ciclo persistirá mesmo navegando entre as telas.")
+            col_a1, col_a2 = st.columns(2)
+            with col_a1:
+                st.session_state["t_auto_temp"] = st.number_input("Tempo de Ciclo (minutos)", min_value=1, value=st.session_state["t_auto_temp"])
+            with col_a2:
+                st.session_state["t_pisca_temp"] = st.number_input("Frequência do Pisca (segundos)", min_value=1, value=st.session_state["t_pisca_temp"])
             
-            agora_real = obter_hora_brasilia()
-            if agora_real.minute == 0 and not st.session_state["ciclo_ativo"]:
-                st.session_state["hora_inicio_ciclo"] = None
-
             if not st.session_state["ciclo_ativo"]:
-                if st.session_state["hora_inicio_ciclo"] is None:
-                    if st.button("▶️ INICIAR CICLO"):
-                        st.session_state["ciclo_ativo"] = True
-                        st.session_state["hora_inicio_ciclo"] = time.time()
-                        registrar_evento("INICIOU CICLO AUTO")
-                        st.rerun()
-                else:
-                    st.info("⏳ CICLO FINALIZADO. AGUARDANDO PRÓXIMA HORA.")
-                    if st.button("🔄 RESETAR MANUALMENTE"):
-                        st.session_state["hora_inicio_ciclo"] = None
-                        st.rerun()
+                if st.button("▶️ INICIAR CICLO DE TRABALHO"):
+                    st.session_state["ciclo_ativo"] = True
+                    st.session_state["hora_inicio_ciclo"] = time.time()
+                    registrar_evento("INICIOU CICLO AUTOMÁTICO")
+                    st.rerun()
             else:
-                if st.button("⏹️ PARAR CICLO"):
+                if st.button("⏹️ PARAR OPERAÇÃO"):
                     st.session_state["ciclo_ativo"] = False
                     st.session_state["hora_inicio_ciclo"] = None
                     db.reference("controle/led").set("OFF")
                     st.rerun()
                 
-                tempo_passado = (time.time() - st.session_state["hora_inicio_ciclo"]) / 60
-                st.success(f"⚡ CICLO EM CURSO - Decorrido: {tempo_passado:.1f} / {t_trabalho} min")
+                restante = st.session_state["t_auto_temp"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
+                st.success(f"⚡ OPERAÇÃO EM CURSO - Tempo restante estimado: {restante:.2f} min")
                 time.sleep(1)
                 st.rerun()
 
     # --- TELA: MEDIÇÃO (v13.0 + BOTÃO REFRESH) ---
     elif menu == "🌡️ Medição":
-        st.header("Telemetria Industrial")
+        st.header("Monitoramento de Sensores em Tempo Real")
         
-        t = db.reference("sensor/temperatura").get() or 0
-        u = db.reference("sensor/umidade").get() or 0
+        temp_val = db.reference("sensor/temperatura").get() or 0
+        umid_val = db.reference("sensor/umidade").get() or 0
         
-        pct_t = min(max((t / 60) * 100, 0), 100)
-        pct_u = min(max(u, 0), 100)
+        pct_t = min(max((temp_val / 60) * 100, 0), 100)
+        pct_u = min(max(umid_val, 0), 100)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px; transition:0.8s;"></div></div></div>''', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px; transition:0.8s;"></div></div></div>''', unsafe_allow_html=True)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.markdown(f'''<div class="gauge-card">Temperatura Ambiente (°C)<div class="gauge-value">{temp_val}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col_s2:
+            st.markdown(f'''<div class="gauge-card">Umidade Relativa (%)<div class="gauge-value">{umid_val}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
             
-        if st.button("🔄 REFRESH"):
+        if st.button("🔄 ATUALIZAR LEITURAS"):
+            st.rerun()
+        
+        if st.session_state["ciclo_ativo"]:
+            time.sleep(1)
             st.rerun()
 
-    # --- TELA: RELATÓRIOS (v13.0) ---
+    # --- TELA: RELATÓRIOS ---
     elif menu == "📊 Relatórios":
-        st.header("Histórico de Atividades")
+        st.header("Histórico Logístico e Operacional")
         
-        if st.button("🗑️ LIMPAR HISTÓRICO"):
+        if st.button("🗑️ LIMPAR TODOS OS REGISTROS"):
             db.reference("historico_acoes").delete()
-            registrar_evento("LIMPEZA", manual=True)
+            registrar_evento("HISTÓRICO RESETADO PELO OPERADOR", manual=True)
             st.rerun()
         
-        with st.expander("📲 Notificar via WhatsApp"):
-            tel = st.text_input("Número (com DDD)", value="5562999999999")
-            msg_w = st.text_area("Mensagem", "Relatório ASB: Equipamento operando normalmente.")
-            if st.button("ABRIR CONVERSA"):
-                link = f"https://wa.me/{tel}?text={urllib.parse.quote(msg_w)}"
-                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:15px; text-align:center; border-radius:10px; font-weight:bold;">ENVIAR AGORA</div></a>', unsafe_allow_html=True)
+        with st.expander("📲 Enviar Notificação via WhatsApp"):
+            tel_w = st.text_input("Número de Destino (Ex: 55629...)", value="5562999999999")
+            msg_w = st.text_area("Texto da Mensagem", "O sistema ASB Automação informa: Ativos operando dentro da normalidade.")
+            if st.button("GERAR LINK WHATSAPP"):
+                link_w = f"https://wa.me/{tel_w}?text={urllib.parse.quote(msg_w)}"
+                st.markdown(f'<a href="{link_w}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366; color:white; padding:15px; text-align:center; border-radius:10px; font-weight:bold;">ABRIR NO WHATSAPP</div></a>', unsafe_allow_html=True)
 
-        logs = db.reference("historico_acoes").get()
-        if logs:
+        historico = db.reference("historico_acoes").get()
+        if historico:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-            for k in reversed(list(logs.keys())):
-                v = logs[k]
-                st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
+            for key in reversed(list(historico.keys())):
+                item = historico[key]
+                st.markdown(f'<div class="msg-balao"><b>Usuário: {item.get("usuario")}</b><br>{item.get("acao")}<br><small>{item.get("data")}</small></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
+            
+        if st.session_state["ciclo_ativo"]:
+            time.sleep(1)
+            st.rerun()
 
-    # --- TELA: DIAGNÓSTICO (v13.0) ---
+    # --- TELA: DIAGNÓSTICO ---
     elif menu == "🛠️ Diagnóstico":
-        st.header("Status de Conectividade")
+        st.header("Estado de Rede e Hardware")
         
-        if st.button("🔍 EXECUTAR PING NO HARDWARE"):
-            with st.spinner("Sondando ESP32..."):
+        if st.button("🔍 EXECUTAR TESTE DE RESPOSTA (PING)"):
+            with st.spinner("Sondando dispositivo em campo..."):
                 db.reference("sensor/temperatura").delete()
                 time.sleep(4)
-                st.session_state["net_status"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
+                st.session_state["ping_status"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
         
-        if st.session_state.get("net_status") == "ON":
-            st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
-        elif st.session_state.get("net_status") == "OFF":
-            st.markdown("<div class='status-erro'>❌ HARDWARE OFFLINE</div>", unsafe_allow_html=True)
+        if st.session_state.get("ping_status") == "ON":
+            st.markdown("<div class='status-ok'>✅ DISPOSITIVO ONLINE E OPERANTE</div>", unsafe_allow_html=True)
+        elif st.session_state.get("ping_status") == "OFF":
+            st.markdown("<div class='status-erro'>❌ FALHA NA RESPOSTA DO DISPOSITIVO</div>", unsafe_allow_html=True)
             
-        if st.button("REBOOT REMOTO"):
+        if st.button("FORÇAR REBOOT REMOTO"):
             db.reference("controle/restart").set(True)
-            registrar_evento("COMANDO REBOOT ENVIADO")
-            st.warning("Comando enviado.")
-
-    # --- TELA: GESTÃO DE USUÁRIOS (v13.0) ---
-    elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
-        st.header("Gerenciamento de Operadores")
-        
-        with st.form("cad_user"):
-            new_n = st.text_input("Nome Completo")
-            new_l = st.text_input("Login de Acesso")
-            new_s = st.text_input("Senha", type="password")
+            registrar_evento("COMANDO DE REINICIALIZAÇÃO ENVIADO")
+            st.warning("Comando enviado ao processador.")
             
-            if st.form_submit_button("CADASTRAR NOVO USUÁRIO"):
+        if st.session_state["ciclo_ativo"]:
+            time.sleep(1)
+            st.rerun()
+
+    # --- TELA: GESTÃO DE USUÁRIOS (SÓ ADMIN) ---
+    elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
+        st.header("Gerenciamento de Acessos")
+        
+        with st.form("form_novo_usuario"):
+            nome_n = st.text_input("Nome do Colaborador")
+            login_n = st.text_input("Login Único")
+            senha_n = st.text_input("Senha de Acesso", type="password")
+            
+            if st.form_submit_button("CADASTRAR NOVO OPERADOR"):
                 db.reference("usuarios_autorizados").push({
-                    "nome": new_n, 
-                    "login": new_l, 
-                    "senha": new_s, 
+                    "nome": nome_n, 
+                    "login": login_n, 
+                    "senha": senha_n, 
                     "data": obter_hora_brasilia().strftime('%d/%m/%Y')
                 })
-                st.success("Usuário cadastrado com sucesso!")
+                st.success("Usuário registrado na base de dados com sucesso!")
                 st.rerun()
         
-        st.subheader("Usuários Cadastrados")
-        users = db.reference("usuarios_autorizados").get()
-        if users:
-            for k, v in users.items():
-                st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')} | Desde: {v.get('data')}</div>", unsafe_allow_html=True)
+        st.subheader("Operadores Ativos")
+        lista_usuarios = db.reference("usuarios_autorizados").get()
+        if lista_usuarios:
+            for key, val in lista_usuarios.items():
+                st.markdown(f"<div class='card-usuario'><b>{val.get('nome')}</b> | ID: {val.get('login')} | Cadastro: {val.get('data')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v30.1
+# ASB AUTOMAÇÃO INDUSTRIAL - v34.0
