@@ -29,7 +29,7 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
-    /* BOTÕES COM TAMANHO PADRONIZADO v8.7 - PRESERVADO */
+    /* BOTÕES COM TAMANHO PADRONIZADO v8.7 - PRESERVADO E ALINHADO */
     div.stButton > button:first-child {
         width: 100%;
         height: 4.5em;
@@ -38,6 +38,8 @@ st.markdown("""
         color: white;
         border-radius: 10px;
         border: none;
+        display: block;
+        margin: auto;
     }
 
     .card-usuario { 
@@ -109,7 +111,7 @@ st.markdown("""
         border-radius: 10px; 
         overflow: hidden; 
         position: relative; 
-        margin-top: 10px; 
+        margin-top: 20px; 
     }
     
     .bar-on { 
@@ -273,7 +275,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 5. LÓGICA DE CICLO GLOBAL (v35.0) ---
+    # --- 5. LÓGICA DE CICLO GLOBAL (v37.0) ---
     if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
         agora_atual = time.time()
         tempo_decorrido = (agora_atual - st.session_state["hora_inicio_ciclo"]) / 60
@@ -313,41 +315,42 @@ else:
         with col_h3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Histórico completo de auditoria.</p></div>""", unsafe_allow_html=True)
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
-    # --- TELA: ACIONAMENTO (v35.0 - ESTADO EM REPOUSO) ---
+    # --- TELA: ACIONAMENTO (v37.0 - ALINHAMENTO CORRIGIDO) ---
     elif menu == "🕹️ Acionamento":
         st.header("Painel de Comando de Ativos")
         modo_operacao = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
         status_atual_led = db.reference("controle/led").get()
 
         if modo_operacao == "MANUAL":
-            # Adicionado o Botão de Repouso (Estado 0) para evitar conflitos
             col_m1, col_m0, col_m2 = st.columns(3)
             
             with col_m1:
                 indicador_v = "<span class='blink'>🟢</span>" if status_atual_led == 'ON' else "⚪"
-                if st.button("LIGAR ATIVO"):
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{indicador_v}</p>", unsafe_allow_html=True)
+                if st.button("LIGAR"):
+                    st.session_state["ciclo_ativo"] = False 
                     db.reference("controle/led").set("ON")
                     registrar_evento("MANUAL: LIGADO")
                     st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{indicador_v}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_atual_led == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             
-            with col_m0: # BOTÃO DE ESTADO 0 / REPOUSO
-                st.markdown("<p style='text-align:center; color:#555; font-weight:bold; margin-top:10px;'>ESTADO 0</p>", unsafe_allow_html=True)
-                if st.button("REPOUSO (OFF)"):
+            with col_m0:
+                st.markdown("<p style='text-align:center; font-size:25px; margin-bottom:10px;'>💤</p>", unsafe_allow_html=True)
+                if st.button("REPOUSO"):
+                    st.session_state["ciclo_ativo"] = False 
                     db.reference("controle/led").set("OFF")
                     registrar_evento("MANUAL: REPOUSO")
                     st.rerun()
-                st.markdown("<p style='text-align:center; font-size:25px; margin-bottom:0;'>💤</p>", unsafe_allow_html=True)
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
 
             with col_m2:
                 indicador_r = "<span class='blink'>🔴</span>" if status_atual_led == 'OFF' else "⚪"
-                if st.button("DESLIGAR ATIVO"):
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{indicador_r}</p>", unsafe_allow_html=True)
+                if st.button("DESLIGAR"):
+                    st.session_state["ciclo_ativo"] = False 
                     db.reference("controle/led").set("OFF")
                     registrar_evento("MANUAL: DESLIGADO")
                     st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:0;'>{indicador_r}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_atual_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         
         else: # AUTOMÁTICO
@@ -425,4 +428,4 @@ else:
         if lista:
             for k, v in lista.items(): st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v35.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v37.0
