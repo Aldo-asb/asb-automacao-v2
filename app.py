@@ -9,7 +9,7 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (PADRÃO v13.0 / v37.0) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (v13.0 / v37.0 - MANUTENÇÃO ABSOLUTA) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -59,7 +59,7 @@ st.markdown("""
         background-color: #e8f5e9; 
         font-size: 22px; 
     }
-    
+
     .home-card { 
         background-color: #ffffff; 
         padding: 25px; 
@@ -68,6 +68,10 @@ st.markdown("""
         border-top: 5px solid #00458d; 
         text-align: center; 
         height: 100%; 
+    }
+    .home-icon { 
+        font-size: 40px; 
+        margin-bottom: 15px; 
     }
 
     .gauge-card { 
@@ -141,8 +145,7 @@ def conectar_firebase():
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred, {'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'})
             return True
-        except Exception as e:
-            return False
+        except: return False
     return True
 
 # --- 3. INICIALIZAÇÃO DE ESTADOS ---
@@ -157,6 +160,7 @@ if "modo_operacao" not in st.session_state: st.session_state["modo_operacao"] = 
 if not st.session_state["logado"]:
     conectar_firebase()
     st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitulo-asb'>Plataforma Integrada IoT</div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
         u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
@@ -176,7 +180,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 5. LÓGICA DE EXECUÇÃO GLOBAL (PROTEGIDA) ---
+    # --- 5. LÓGICA GLOBAL (v45.0 - BLOQUEIO DE SEGURANÇA) ---
     if st.session_state["modo_operacao"] == "AUTOMÁTICO":
         if st.session_state["ciclo_ativo"] and st.session_state["hora_inicio_ciclo"]:
             agora_atual = time.time()
@@ -200,68 +204,65 @@ else:
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         col_h1, col_h2, col_h3 = st.columns(3)
-        with col_h1: st.markdown("""<div class='home-card'><h3>Supervisão IoT</h3><p>Controle em tempo real.</p></div>""", unsafe_allow_html=True)
-        with col_h2: st.markdown("""<div class='home-card'><h3>Telemetria</h3><p>Análise de sensores.</p></div>""", unsafe_allow_html=True)
-        with col_h3: st.markdown("""<div class='home-card'><h3>Segurança</h3><p>Histórico de logs.</p></div>""", unsafe_allow_html=True)
+        with col_h1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Controle e monitoramento em nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
+        with col_h2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Telemetria</h3><p>Análise de dados industriais e sensores.</p></div>""", unsafe_allow_html=True)
+        with col_h3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Histórico completo de auditoria e logs.</p></div>""", unsafe_allow_html=True)
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "🕹️ Acionamento":
         st.header("Painel de Comando de Ativos")
-        # Atualiza o estado global do modo
-        st.session_state["modo_operacao"] = st.radio("Selecione o Modo:", ["MANUAL", "AUTOMÁTICO"], horizontal=True, index=0 if st.session_state["modo_operacao"] == "MANUAL" else 1)
+        st.session_state["modo_operacao"] = st.radio("Selecione o Modo de Operação:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
         
         status_led = db.reference("controle/led").get()
         
-        # CONTAINER MANUAL
         if st.session_state["modo_operacao"] == "MANUAL":
-            with st.container():
-                col_m1, col_m0, col_m2 = st.columns(3)
-                with col_m1:
-                    st.write("🟢" if status_led == "ON" else "⚪")
-                    if st.button("LIGAR ATIVO"): 
-                        db.reference("controle/led").set("ON")
-                        st.rerun()
-                    st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_led == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
-                with col_m0:
-                    st.write("💤")
-                    if st.button("REPOUSO"): 
-                        db.reference("controle/led").set("REPOUSO")
-                        st.rerun()
-                    st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
-                with col_m2:
-                    st.write("🔴" if status_led == "OFF" else "⚪")
-                    if st.button("DESLIGAR ATIVO"): 
-                        db.reference("controle/led").set("OFF")
-                        st.rerun()
-                    st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+            col_m1, col_m0, col_m2 = st.columns(3)
+            with col_m1:
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{'🟢' if status_led == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                if st.button("LIGAR ATIVO"): 
+                    db.reference("controle/led").set("ON")
+                    st.rerun()
+                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_led == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+            with col_m0:
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>💤</p>", unsafe_allow_html=True)
+                if st.button("REPOUSO"): 
+                    db.reference("controle/led").set("REPOUSO")
+                    st.rerun()
+                st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
+            with col_m2:
+                st.markdown(f"<p style='text-align:center; font-size:25px; margin-bottom:10px;'>{'🔴' if status_led == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
+                if st.button("DESLIGAR ATIVO"): 
+                    db.reference("controle/led").set("OFF")
+                    st.rerun()
+                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_led == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         
-        # CONTAINER AUTOMÁTICO
-        else:
-            with st.container():
-                st.info("🤖 MODO AUTOMÁTICO - Comandos manuais bloqueados.")
-                c_a1, c_a2 = st.columns(2)
-                with c_a1: st.session_state["t_auto_temp"] = st.number_input("Ciclo (min)", value=st.session_state["t_auto_temp"])
-                with c_a2: st.session_state["t_pisca_temp"] = st.number_input("Pisca (seg)", value=st.session_state["t_pisca_temp"])
-                
-                if not st.session_state["ciclo_ativo"]:
-                    if st.button("▶️ INICIAR CICLO"): 
-                        st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time()
-                        st.rerun()
-                else:
-                    if st.button("⏹️ PARAR OPERAÇÃO"): 
-                        st.session_state["ciclo_ativo"] = False
-                        db.reference("controle/led").set("OFF")
-                        st.rerun()
-                    restante = st.session_state["t_auto_temp"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
-                    st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
+        else: # AUTOMÁTICO
+            st.info("🤖 MODO AUTOMÁTICO ATIVO")
+            c_a1, c_a2 = st.columns(2)
+            with c_a1: st.session_state["t_auto_temp"] = st.number_input("Tempo de Ciclo (min)", value=st.session_state["t_auto_temp"])
+            with c_a2: st.session_state["t_pisca_temp"] = st.number_input("Velocidade Pisca (seg)", value=st.session_state["t_pisca_temp"])
+            if not st.session_state["ciclo_ativo"]:
+                if st.button("▶️ INICIAR CICLO"): 
+                    st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time()
+                    st.rerun()
+            else:
+                if st.button("⏹️ PARAR OPERAÇÃO"): 
+                    st.session_state["ciclo_ativo"] = False
+                    db.reference("controle/led").set("OFF")
+                    st.rerun()
+                restante = st.session_state["t_auto_temp"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
+                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
         st.header("Monitoramento de Sensores")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
-        c_s1, c_s2 = st.columns(2)
-        with c_s1: st.markdown(f'''<div class="gauge-card">Temp (°C)<div class="gauge-value">{t}</div></div>''', unsafe_allow_html=True)
-        with c_s2: st.markdown(f'''<div class="gauge-card">Umid (%)<div class="gauge-value">{u}</div></div>''', unsafe_allow_html=True)
-        if st.button("🔄 ATUALIZAR LEITURAS"): st.rerun()
+        pct_t, pct_u = min(max((t/60)*100, 0), 100), min(max(u, 0), 100)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1: 
+            st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col_s2: 
+            st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        if st.button("🔄 REFRESH"): st.rerun()
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
     elif menu == "📊 Relatórios":
@@ -280,4 +281,4 @@ else:
         if st.session_state.get("ping") == "ON": st.success("ONLINE")
         if st.session_state["ciclo_ativo"]: time.sleep(1); st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v42.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v45.0
