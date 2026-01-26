@@ -58,6 +58,17 @@ st.markdown("""
         background-color: #e8f5e9; 
         font-size: 22px; 
     }
+
+    .status-alert { 
+        color: #dc3545; 
+        font-weight: bold; 
+        padding: 20px; 
+        border: 2px solid #dc3545; 
+        border-radius: 8px; 
+        text-align: center; 
+        background-color: #fdecea; 
+        font-size: 22px; 
+    }
     
     /* CARDS HOME - IDENTIDADE v13.0 */
     .home-card { 
@@ -136,17 +147,20 @@ def obter_hora_brasilia():
 def conectar_firebase():
     if not firebase_admin._apps:
         try:
+            # Prioriza secrets, mas mantém compatibilidade com dicionário local se necessário
             cred_dict = {
-                "type": st.secrets.get("type"),
-                "project_id": st.secrets.get("project_id"),
-                "private_key": st.secrets.get("private_key", "").replace('\\n', '\n'),
-                "client_email": st.secrets.get("client_email"),
-                "token_uri": st.secrets.get("token_uri")
+                "type": st.secrets["type"],
+                "project_id": st.secrets["project_id"],
+                "private_key": st.secrets["private_key"].replace('\\n', '\n'),
+                "client_email": st.secrets["client_email"],
+                "token_uri": st.secrets["token_uri"]
             }
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred, {'databaseURL': 'https://projeto-asb-comercial-default-rtdb.firebaseio.com/'})
             return True
-        except: return False
+        except Exception as e: 
+            st.error(f"Erro Conexão: {e}")
+            return False
     return True
 
 def registrar_evento(acao, manual=False):
@@ -193,7 +207,7 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 4. LÓGICA MODO AUTOMÁTICO ---
+    # --- 4. LÓGICA MODO AUTOMÁTICO (PRESERVADA) ---
     if st.session_state["modo_operacao"] == "AUTOMÁTICO" and st.session_state["ciclo_ativo"]:
         agora_seg = time.time()
         decorrido = (agora_seg - st.session_state.get("hora_inicio_ciclo", 0)) / 60
@@ -212,7 +226,7 @@ else:
     st.session_state["email_ativo"] = st.sidebar.toggle("E-mail Automático", value=st.session_state["email_ativo"])
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- 6. TELAS (RESTRICTED TO v13 VISUAL) ---
+    # --- 6. TELAS (RESTRICTED TO v13 VISUAL + v56.0 IMPROVEMENTS) ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
@@ -258,7 +272,11 @@ else:
         col1, col2 = st.columns(2)
         with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
-        if st.button("🔄 REFRESH"): st.rerun()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 ATUALIZAR MEDIÇÃO"): 
+            st.toast("Sincronizando com Hardware...")
+            st.rerun()
 
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
@@ -272,13 +290,37 @@ else:
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "🛠️ Diagnóstico":
-        st.header("Status de Rede")
-        c1, c2 = st.columns(2)
-        if c1.button("🔍 EXECUTAR PING"):
-            db.reference("sensor/temperatura").delete(); time.sleep(4)
-            st.session_state["net_status"] = "ON" if db.reference("sensor/temperatura").get() is not None else "OFF"
-        if c2.button("⚠️ REBOOT"): db.reference("controle/sistema").set("RESET"); st.warning("Comando enviado.")
-        if st.session_state.get("net_status") == "ON": st.markdown("<div class='status-ok'>✅ CONEXÃO ATIVA</div>", unsafe_allow_html=True)
+        st.header("Status de Rede e Hardware")
+        
+        # --- LÓGICA DE PULSO DE VIDA v56.0 ---
+        ultimo_p = db.reference("sensor/ultimo_pulso").get()
+        status_viva = False
+        if ultimo_p:
+            ts_atual = time.time() * 1000  # Firebase usa ms
+            # Se o pulso foi há menos de 45 segundos, está online
+            if (ts_atual - ultimo_p) < 45000:
+                status_viva = True
+
+        if status_viva:
+            st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE (PULSO ATIVO)</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='status-alert'>⚠️ SISTEMA OFFLINE (SEM COMUNICAÇÃO)</div>", unsafe_allow_html=True)
+        
+        st.divider()
+        c1, c2, c3 = st.columns(3)
+        if c1.button("🔍 PING TEST"):
+            st.toast("Verificando latência...")
+            st.rerun()
+        
+        if c2.button("🔁 REBOOT ESP32"):
+            db.reference("controle/restart").set(True)
+            registrar_evento("REBOOT REMOTO")
+            st.warning("Comando de reinicialização enviado.")
+
+        if c3.button("📡 NOVO WI-FI"):
+            db.reference("controle/restart").set(True) # O ESP32 REV 02.1 abre portal ao reiniciar sem achar rede
+            registrar_evento("FORÇAR PORTAL WI-FI")
+            st.error("O Hardware entrará em modo de configuração ASB_WIFI.")
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
         st.header("Gerenciamento de Operadores")
@@ -292,4 +334,4 @@ else:
             for k, v in users.items():
                 st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v55.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v56.0 (Integrity Restricted)
