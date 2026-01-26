@@ -162,7 +162,7 @@ else:
     # INTERAÇÃO WHATSAPP (RESTAURADO)
     st.sidebar.divider()
     texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
-    st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/5500000000000?text={texto_wa})')
+    st.markdown(f"<div style='text-align:center; font-size:25px; width:100%;'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</div>", unsafe_allow_html=True)
     
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
