@@ -9,7 +9,7 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (RESTRICT v13.0 IDENTITY - EXATO COMO ENVIADO) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (RESTRICT v13.0 IDENTITY) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -29,7 +29,7 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
-    /* BOTÕES COM TAMANHO PADRONIZADO v13.0 - EXATO */
+    /* BOTÕES COM TAMANHO PADRONIZADO v13.0 */
     div.stButton > button:first-child {
         width: 100%;
         height: 4.5em;
@@ -83,7 +83,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO (PRESERVADAS) ---
+# --- 2. FUNÇÕES DE NÚCLEO ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
@@ -111,7 +111,7 @@ def registrar_evento(acao, manual=False):
         db.reference("historico_acoes").push({"data": agora_f, "usuario": usuario, "acao": acao})
     except: pass
 
-# --- 3. ESTADOS E LOGIN (PRESERVADOS) ---
+# --- 3. ESTADOS E LOGIN ---
 if "logado" not in st.session_state: st.session_state["logado"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 if "email_ativo" not in st.session_state: st.session_state["email_ativo"] = True
@@ -148,13 +148,13 @@ else:
     menu = st.sidebar.radio("Navegação:", opts)
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- 6. TELAS (RESTRICTED TO v13 VISUAL - CÓDIGO ORIGINAL) ---
+    # --- 6. TELAS (RESTRICTED TO v13 VISUAL) ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
-        with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Telemetria avançada.</p></div>""", unsafe_allow_html=True)
-        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
+        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo de ativos industriais via nuvem com baixa latência.</p></div>""", unsafe_allow_html=True)
+        with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise de Dados</h3><p>Gráficos em tempo real para tomada de decisões baseada em telemetria precisa.</p></div>""", unsafe_allow_html=True)
+        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Controle de acesso multi usuários e registros de auditorias em todos os acionamentos.</p></div>""", unsafe_allow_html=True)
 
     elif menu == "🕹️ Acionamento":
         st.header("Controle de Ativos")
@@ -194,28 +194,24 @@ else:
         with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         
-        # MELHORIA PONTUAL: GRAVAÇÃO SILENCIOSA E BOTÃO ABAIXO
-        if st.button("🔄 ATUALIZAR MEDIÇÃO"): 
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 ATUALIZAR AGORA"): 
             db.reference("historico_sensores").push({"t": t, "u": u, "data": obter_hora_brasilia().strftime('%H:%M:%S')})
             st.rerun()
 
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
-        # MELHORIA PONTUAL: BOTÃO DE DOWNLOAD SEM ALTERAR O CHAT
         dados_s = db.reference("historico_sensores").get()
         if dados_s:
             df_export = pd.DataFrame(list(dados_s.values()))
             csv = df_export.to_csv(index=False).encode('utf-8')
             st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", csv, "relatorio_asb.csv", "text/csv")
-        
         st.divider()
-        if st.button("🗑️ LIMPAR HISTÓRICO"): db.reference("historico_acoes").delete(); st.rerun()
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
             for k in reversed(list(logs.keys())):
-                v = logs[k]
-                st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
+                v = logs[k]; st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "🛠️ Diagnóstico":
@@ -226,8 +222,10 @@ else:
         else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
-        if c1.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
-        if c2.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
+        with c1:
+            if st.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
+        with c2:
+            if st.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
         st.header("Gerenciamento de Operadores")
@@ -241,4 +239,4 @@ else:
             for k, v in users.items():
                 st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v59.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v61.0 (Integrity Restricted)
