@@ -165,12 +165,16 @@ else:
     
     st.sidebar.divider()
     
-    # DIRETRIZ 3: Botão de Email entre Navegação e Suporte
+    # DIRETRIZ: Botão de Email entre Navegação e Suporte
     st.session_state["email_ativo"] = st.sidebar.toggle("📧 Envio por Email", value=st.session_state["email_ativo"])
     
-    texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
-    st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/5500000000000?text={texto_wa})')
+    # DIRETRIZ: Caixa de diálogo para número de WhatsApp antes do link
+    num_wa_input = st.sidebar.text_input("Número WhatsApp (com DDD)", placeholder="5511999999999")
+    if num_wa_input:
+        texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
+        st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/{num_wa_input}?text={texto_wa})')
     
+    st.sidebar.divider()
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
     # --- 6. TELAS ---
@@ -194,7 +198,7 @@ else:
                 st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
-                # DIRETRIZ 1: Faixa Amarela para Repouso
+                # DIRETRIZ: Faixa Amarela para Repouso
                 blink = "blink-faixa" if status_real == "REPOUSO" else ""
                 st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-yellow" if status_real == "REPOUSO" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c3:
@@ -207,22 +211,29 @@ else:
             t_auto = ca1.number_input("Tempo Ciclo (min)", value=5)
             v_pisca = ca2.number_input("Velocidade Pisca (seg)", value=2)
             
+            # DIRETRIZ: Restaurado o botão de início de ciclo
             if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR"):
+                if st.button("▶️ INICIAR CICLO"):
                     st.session_state["ciclo_ativo"] = True
                     st.session_state["inicio_ciclo"] = time.time()
                     registrar_evento("INICIOU MODO AUTOMÁTICO")
                     st.rerun()
             else:
-                # DIRETRIZ 4: Contagem do tempo de processo
+                # DIRETRIZ: Contagem do tempo de processo
                 decorrido = (time.time() - st.session_state.get("inicio_ciclo", time.time())) / 60
                 restante = t_auto - decorrido
                 
                 if restante > 0:
                     st.warning(f"⏳ Tempo restante: {restante:.2f} minutos")
-                    # Lógica de pisca no Firebase
+                    # Lógica de pisca
                     fase = int(time.time() % (v_pisca * 2))
                     db.reference("controle/led").set("ON" if fase < v_pisca else "OFF")
+                    
+                    if st.button("⏹️ PARAR CICLO"): 
+                        st.session_state["ciclo_ativo"] = False
+                        db.reference("controle/led").set("OFF")
+                        st.rerun()
+                    
                     time.sleep(1)
                     st.rerun()
                 else:
@@ -230,8 +241,6 @@ else:
                     db.reference("controle/led").set("OFF")
                     st.success("Ciclo Finalizado!")
                     st.rerun()
-
-                if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
 
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
@@ -287,7 +296,7 @@ else:
         usrs = db.reference("usuarios_autorizados").get()
         if usrs:
             for k, v in usrs.items():
-                # DIRETRIZ 2 e 5: Visualização com Login e Senha
+                # DIRETRIZ: Visualização com Login e Senha
                 st.markdown(f"""
                     <div class='card-contato'>
                         🟢 <b>{v['nome']}</b><br>
@@ -296,4 +305,4 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v80.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v82.0
