@@ -29,7 +29,6 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
-    /* AJUSTE DEFINITIVO DE TAMANHO DOS BOTÕES */
     div.stButton > button:first-child {
         width: 100% !important;
         min-width: 100% !important;
@@ -43,25 +42,31 @@ st.markdown("""
         display: block !important;
     }
 
-    /* ESTILO PARA CENTRALIZAR O STATUS ABAIXO DO BOTÃO */
     .status-container-fix {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         width: 100% !important;
-        height: 40px;
-        font-size: 25px;
-        margin: 0 auto !important;
+        height: 50px;
+        font-size: 30px;
+        margin: 5px 0 !important;
+    }
+
+    .status-ok-box { 
+        color: #28a745; font-weight: bold; padding: 20px; border: 2px solid #28a745; 
+        border-radius: 8px; text-align: center; background-color: #e8f5e9; font-size: 22px; 
+        width: 100%;
+    }
+    
+    .status-alert-box { 
+        color: #dc3545; font-weight: bold; padding: 20px; border: 2px solid #dc3545; 
+        border-radius: 8px; text-align: center; background-color: #fdecea; font-size: 22px; 
+        width: 100%;
     }
 
     .card-usuario { 
         background-color: #f0f2f6; padding: 15px; border-radius: 10px; 
         margin-bottom: 10px; border-left: 5px solid #00458d; 
-    }
-    
-    .status-ok { 
-        color: #28a745; font-weight: bold; padding: 20px; border: 2px solid #28a745; 
-        border-radius: 8px; text-align: center; background-color: #e8f5e9; font-size: 22px; 
     }
     
     .home-card { 
@@ -104,8 +109,8 @@ def obter_hora_brasilia():
 def enviar_email(assunto, mensagem):
     if not st.session_state.get("email_ativo", True): return
     try:
-        remetente = st.secrets.get("email_user", "")
-        senha = st.secrets.get("email_password", "")
+        remetente = st.secrets["email_user"]
+        senha = st.secrets["email_password"]
         msg = MIMEText(mensagem)
         msg['Subject'], msg['From'], msg['To'] = assunto, remetente, remetente
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
@@ -151,24 +156,25 @@ if not st.session_state["logado"]:
     st.markdown("<div class='subtitulo-asb'>Plataforma Integrada IoT</div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
-        u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
+        u = st.text_input("Usuário")
+        p = st.text_input("Senha", type="password")
         if st.button("ACESSAR SISTEMA"):
             if u == "admin" and p == "asb2026":
-                st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "Admin Master", True
+                st.session_state.update({"logado": True, "user_nome": "Admin Master", "is_admin": True})
                 st.rerun()
             else:
-                conectar_firebase()
                 usrs = db.reference("usuarios_autorizados").get()
                 if usrs:
                     for k, v in usrs.items():
                         if v['login'] == u and v['senha'] == p:
-                            st.session_state["logado"], st.session_state["user_nome"] = True, v['nome']
-                            st.session_state["is_admin"] = False; st.rerun()
+                            st.session_state.update({"logado": True, "user_nome": v['nome'], "is_admin": False})
+                            st.rerun()
                 st.error("Credenciais inválidas.")
 else:
     conectar_firebase()
-    
+    # --- 5. MENU LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
+    st.session_state["email_ativo"] = st.sidebar.toggle("📧 Alertas de E-mail", value=st.session_state["email_ativo"])
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
@@ -179,6 +185,7 @@ else:
     
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
+    # --- 6. TELAS ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
@@ -208,8 +215,8 @@ else:
             st.info("🤖 MODO AUTOMÁTICO ATIVO")
             ca1, ca2 = st.columns(2)
             t_auto = ca1.number_input("Tempo Ciclo (min)", value=5)
-            t_pisca = ca2.number_input("Velocidade (seg)", value=2)
-            if not st.session_state.get("ciclo_ativo", False):
+            t_pisca = ca2.number_input("Velocidade Pisca (seg)", value=2)
+            if not st.session_state["ciclo_ativo"]:
                 if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
             else:
                 if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
@@ -245,11 +252,10 @@ else:
 
     elif menu == "🛠️ Diagnóstico":
         st.header("Status de Rede")
-        st.session_state["email_ativo"] = st.checkbox("Habilitar Alertas por E-mail", value=st.session_state["email_ativo"])
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
-        if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
-        else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
+        if online: st.markdown("<div class='status-ok-box'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='status-alert-box'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
@@ -257,11 +263,17 @@ else:
             if st.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
-        st.header("Gerenciamento")
+        st.header("Gerenciamento de Usuários")
         with st.form("cad_u"):
-            n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
+            n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha")
             if st.form_submit_button("CADASTRAR"):
-                db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
-                st.rerun()
+                db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s})
+                st.success("Usuário cadastrado com sucesso!"); st.rerun()
+        
+        st.subheader("Usuários no Banco de Dados")
+        usrs = db.reference("usuarios_autorizados").get()
+        if usrs:
+            df_u = pd.DataFrame(list(usrs.values()))
+            st.table(df_u[["nome", "login", "senha"]])
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v68.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v70.0
