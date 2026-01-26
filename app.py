@@ -70,14 +70,12 @@ st.markdown("""
         overflow: hidden; position: relative; margin-top: 10px; 
     }
     
-    /* REATIVANDO GRADIENTE E ANIMAÇÃO ORIGINAL */
     .bar-on { height: 100%; width: 100%; background: linear-gradient(90deg, #28a745, #85e085, #28a745); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-off { height: 100%; width: 100%; background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
+    .bar-yellow { height: 100%; width: 100%; background: linear-gradient(90deg, #f1c40f, #f9e79f, #f1c40f); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-inativa { height: 100%; width: 100%; background: #eee; border-radius: 10px; }
 
     @keyframes moveRight { 0% { background-position: 200% 0; } 100% { background-position: 0 0; } }
-    
-    /* NOVA LÓGICA DE PISCAR A FAIXA */
     .blink-faixa { animation: blinker 0.8s linear infinite; }
     @keyframes blinker { 50% { opacity: 0.1; } }
 
@@ -160,13 +158,16 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     st.sidebar.title("MENU PRINCIPAL")
-    st.session_state["email_ativo"] = st.sidebar.toggle("📧 Habilitar Alerta E-mail", value=st.session_state["email_ativo"])
     
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
     
     st.sidebar.divider()
+    
+    # DIRETRIZ 3: Botão de Email entre Navegação e Suporte
+    st.session_state["email_ativo"] = st.sidebar.toggle("📧 Envio por Email", value=st.session_state["email_ativo"])
+    
     texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
     st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/5500000000000?text={texto_wa})')
     
@@ -193,7 +194,9 @@ else:
                 st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
-                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "REPOUSO" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+                # DIRETRIZ 1: Faixa Amarela para Repouso
+                blink = "blink-faixa" if status_real == "REPOUSO" else ""
+                st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-yellow" if status_real == "REPOUSO" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
                 blink = "blink-faixa" if status_real == "OFF" else ""
@@ -207,18 +210,27 @@ else:
             if not st.session_state["ciclo_ativo"]:
                 if st.button("▶️ INICIAR"):
                     st.session_state["ciclo_ativo"] = True
-                    inicio_tempo = time.time()
+                    st.session_state["inicio_ciclo"] = time.time()
                     registrar_evento("INICIOU MODO AUTOMÁTICO")
-                    while (time.time() - inicio_tempo) < (t_auto * 60):
-                        db.reference("controle/led").set("ON")
-                        time.sleep(v_pisca)
-                        db.reference("controle/led").set("OFF")
-                        time.sleep(v_pisca)
-                        if not st.session_state["ciclo_ativo"]: break
-                    st.session_state["ciclo_ativo"] = False
-                    db.reference("controle/led").set("OFF")
                     st.rerun()
             else:
+                # DIRETRIZ 4: Contagem do tempo de processo
+                decorrido = (time.time() - st.session_state.get("inicio_ciclo", time.time())) / 60
+                restante = t_auto - decorrido
+                
+                if restante > 0:
+                    st.warning(f"⏳ Tempo restante: {restante:.2f} minutos")
+                    # Lógica de pisca no Firebase
+                    fase = int(time.time() % (v_pisca * 2))
+                    db.reference("controle/led").set("ON" if fase < v_pisca else "OFF")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.session_state["ciclo_ativo"] = False
+                    db.reference("controle/led").set("OFF")
+                    st.success("Ciclo Finalizado!")
+                    st.rerun()
+
                 if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
 
     elif menu == "🌡️ Medição":
@@ -237,7 +249,7 @@ else:
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
         if st.session_state["is_admin"]:
-            if st.button("🗑️ LIMPAR HISTÓRICO DE RELATÓRIOS"):
+            if st.button("🗑️ LIMPAR HISTÓRICO"):
                 db.reference("historico_acoes").delete()
                 db.reference("historico_sensores").delete()
                 st.rerun()
@@ -275,6 +287,13 @@ else:
         usrs = db.reference("usuarios_autorizados").get()
         if usrs:
             for k, v in usrs.items():
-                st.markdown(f"""<div class='card-contato'>🟢 <b>{v['nome']}</b><br><small>Login: {v['login']} | Desde: {v.get('data','--')}</small></div>""", unsafe_allow_html=True)
+                # DIRETRIZ 2 e 5: Visualização com Login e Senha
+                st.markdown(f"""
+                    <div class='card-contato'>
+                        🟢 <b>{v['nome']}</b><br>
+                        <small><b>Usuário:</b> {v['login']} | <b>Senha:</b> {v['senha']}</small><br>
+                        <small>Cadastrado em: {v.get('data','--')}</small>
+                    </div>
+                """, unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v79.0 (Integrity Restored)
+# ASB AUTOMAÇÃO INDUSTRIAL - v80.0
