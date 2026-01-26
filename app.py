@@ -39,9 +39,10 @@ st.markdown("""
         border: none;
     }
 
-    .card-usuario { 
-        background-color: #f0f2f6; padding: 15px; border-radius: 10px; 
-        margin-bottom: 10px; border-left: 5px solid #00458d; 
+    .card-contato { 
+        background-color: #ffffff; padding: 15px; border-radius: 10px; 
+        margin-bottom: 10px; border-left: 5px solid #28a745; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     
     .status-ok { 
@@ -65,24 +66,27 @@ st.markdown("""
     }
     
     .moving-bar-container { 
-        width: 100%; height: 10px; background: #eee; border-radius: 10px; 
+        width: 100%; height: 12px; background: #eee; border-radius: 10px; 
         overflow: hidden; position: relative; margin-top: 10px; 
     }
     
+    /* REATIVANDO GRADIENTE E ANIMAÇÃO ORIGINAL */
     .bar-on { height: 100%; width: 100%; background: linear-gradient(90deg, #28a745, #85e085, #28a745); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-off { height: 100%; width: 100%; background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-inativa { height: 100%; width: 100%; background: #eee; border-radius: 10px; }
 
     @keyframes moveRight { 0% { background-position: 200% 0; } 100% { background-position: 0 0; } }
-    .blink { animation: blinker 1.2s linear infinite; display: inline-block; }
-    @keyframes blinker { 50% { opacity: 0; } }
+    
+    /* NOVA LÓGICA DE PISCAR A FAIXA */
+    .blink-faixa { animation: blinker 0.8s linear infinite; }
+    @keyframes blinker { 50% { opacity: 0.1; } }
 
     .chat-container { background-color: #e5ddd5; padding: 20px; border-radius: 15px; max-height: 400px; overflow-y: auto; }
     .msg-balao { max-width: 70%; padding: 10px 15px; border-radius: 15px; background-color: #ffffff; margin-bottom: 5px; border-left: 5px solid #00458d; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO E COMUNICAÇÃO ---
+# --- 2. FUNÇÕES DE NÚCLEO ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
@@ -139,11 +143,10 @@ if not st.session_state["logado"]:
         u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
         if st.button("ACESSAR SISTEMA"):
             if u == "admin" and p == "asb2026":
-                st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "Admin Master", True
+                st.session_state.update({"logado": True, "user_nome": "Admin Master", "is_admin": True})
                 st.rerun()
-            # DIRETRIZ 2: LOGIN JM 123
             elif u == "JM" and p == "123":
-                st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "JM", False
+                st.session_state.update({"logado": True, "user_nome": "JM", "is_admin": False})
                 st.rerun()
             else:
                 conectar_firebase()
@@ -151,16 +154,12 @@ if not st.session_state["logado"]:
                 if usrs:
                     for k, v in usrs.items():
                         if v['login'] == u and v['senha'] == p:
-                            st.session_state["logado"], st.session_state["user_nome"] = True, v['nome']
-                            st.session_state["is_admin"] = False; st.rerun()
+                            st.session_state.update({"logado": True, "user_nome": v['nome'], "is_admin": False})
+                            st.rerun()
                 st.error("Credenciais inválidas.")
 else:
     conectar_firebase()
-    
-    # --- 5. MENU LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
-    
-    # DIRETRIZ 1 e 7: BOTÃO DE E-MAIL NO MENU PRINCIPAL (LATERAL)
     st.session_state["email_ativo"] = st.sidebar.toggle("📧 Habilitar Alerta E-mail", value=st.session_state["email_ativo"])
     
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
@@ -175,7 +174,6 @@ else:
 
     # --- 6. TELAS ---
     if menu == "🏠 Home":
-        # DIRETRIZ 6: HOME SEM ALTERAÇÃO
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo de ativos industriais via nuvem com baixa latência.</p></div>""", unsafe_allow_html=True)
@@ -186,32 +184,44 @@ else:
         st.header("Controle de Ativos")
         st.session_state["modo_operacao"] = st.radio("Modo:", ["MANUAL", "AUTOMÁTICO"], horizontal=True)
         status_real = db.reference("controle/led").get()
+        
         if st.session_state["modo_operacao"] == "MANUAL":
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                # DIRETRIZ 4: REMOVIDA A BOLINHA, MANTIDA SOMENTE A FAIXA
-                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+                blink = "blink-faixa" if status_real == "ON" else ""
+                st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "REPOUSO" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+                blink = "blink-faixa" if status_real == "OFF" else ""
+                st.markdown(f'<div class="moving-bar-container {blink}"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         else:
             st.info("🤖 MODO AUTOMÁTICO ATIVO")
             ca1, ca2 = st.columns(2)
-            st.session_state["t_auto_v"] = ca1.number_input("Tempo Ciclo (min)", value=5)
-            st.session_state["t_pisca_v"] = ca2.number_input("Velocidade Pisca (seg)", value=2)
+            t_auto = ca1.number_input("Tempo Ciclo (min)", value=5)
+            v_pisca = ca2.number_input("Velocidade Pisca (seg)", value=2)
+            
             if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
+                if st.button("▶️ INICIAR"):
+                    st.session_state["ciclo_ativo"] = True
+                    inicio_tempo = time.time()
+                    registrar_evento("INICIOU MODO AUTOMÁTICO")
+                    while (time.time() - inicio_tempo) < (t_auto * 60):
+                        db.reference("controle/led").set("ON")
+                        time.sleep(v_pisca)
+                        db.reference("controle/led").set("OFF")
+                        time.sleep(v_pisca)
+                        if not st.session_state["ciclo_ativo"]: break
+                    st.session_state["ciclo_ativo"] = False
+                    db.reference("controle/led").set("OFF")
+                    st.rerun()
             else:
                 if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
-                restante = st.session_state["t_auto_v"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
-                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
-        # DIRETRIZ 5: MEDIÇÃO SEM ALTERAÇÃO
         st.header("Telemetria Industrial")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
         pct_t, pct_u = min(max((t / 60) * 100, 0), 100), min(max(u, 0), 100)
@@ -230,13 +240,8 @@ else:
             if st.button("🗑️ LIMPAR HISTÓRICO DE RELATÓRIOS"):
                 db.reference("historico_acoes").delete()
                 db.reference("historico_sensores").delete()
-                st.success("Histórico excluído!"); time.sleep(1); st.rerun()
+                st.rerun()
 
-        dados_s = db.reference("historico_sensores").get()
-        if dados_s:
-            df_export = pd.DataFrame(list(dados_s.values()))
-            st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", df_export.to_csv(index=False).encode('utf-8'), "relatorio_asb.csv", "text/csv")
-        st.divider()
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -246,14 +251,11 @@ else:
 
     elif menu == "🛠️ Diagnóstico":
         st.header("Status de Rede")
-        # DIRETRIZ 7: Botão de email removido daqui (movido para sidebar)
-        
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
         if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
-        else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
+        else: st.markdown("<div style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         
-        # DIRETRIZ 3: CORREÇÃO DO ALINHAMENTO DOS BOTÕES
         st.markdown("<br>", unsafe_allow_html=True)
         col_diag1, col_diag2 = st.columns(2)
         with col_diag1:
@@ -268,5 +270,11 @@ else:
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
+        
+        st.subheader("Contatos Cadastrados")
+        usrs = db.reference("usuarios_autorizados").get()
+        if usrs:
+            for k, v in usrs.items():
+                st.markdown(f"""<div class='card-contato'>🟢 <b>{v['nome']}</b><br><small>Login: {v['login']} | Desde: {v.get('data','--')}</small></div>""", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v76.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v79.0 (Integrity Restored)
