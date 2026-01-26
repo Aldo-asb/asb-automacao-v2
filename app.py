@@ -29,7 +29,6 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
-    /* BOTÕES COM TAMANHO PADRONIZADO v13.0 */
     div.stButton > button:first-child {
         width: 100%;
         height: 4.5em;
@@ -83,9 +82,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO ---
+# --- 2. FUNÇÕES DE NÚCLEO E COMUNICAÇÃO ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
+
+def enviar_email(assunto, mensagem):
+    if not st.session_state.get("email_ativo", True): return
+    try:
+        remetente = st.secrets.get("email_user", "seu_email@gmail.com")
+        senha = st.secrets.get("email_password", "sua_senha")
+        msg = MIMEText(mensagem)
+        msg['Subject'], msg['From'], msg['To'] = assunto, remetente, remetente
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(remetente, senha)
+            server.send_message(msg)
+    except: pass
 
 @st.cache_resource
 def conectar_firebase():
@@ -104,11 +115,12 @@ def conectar_firebase():
         except: return False
     return True
 
-def registrar_evento(acao, manual=False):
+def registrar_evento(acao):
     usuario = st.session_state.get("user_nome", "desconhecido")
     agora_f = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora_f, "usuario": usuario, "acao": acao})
+        enviar_email(f"ASB: {acao}", f"Evento: {acao}\nUsuário: {usuario}\nData: {agora_f}")
     except: pass
 
 # --- 3. ESTADOS E LOGIN ---
@@ -146,9 +158,15 @@ else:
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
+    
+    # INTERAÇÃO WHATSAPP (RESTAURADO)
+    st.sidebar.divider()
+    texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
+    st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/5500000000000?text={texto_wa})')
+    
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- 6. TELAS (RESTRICTED TO v13 VISUAL) ---
+    # --- 6. TELAS ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
@@ -216,6 +234,8 @@ else:
 
     elif menu == "🛠️ Diagnóstico":
         st.header("Status de Rede")
+        st.session_state["email_ativo"] = st.checkbox("Habilitar Alertas por E-mail", value=st.session_state["email_ativo"])
+        
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
         if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
@@ -234,9 +254,5 @@ else:
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
-        users = db.reference("usuarios_autorizados").get()
-        if users:
-            for k, v in users.items():
-                st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v61.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v62.0 (Integrity Restricted)
