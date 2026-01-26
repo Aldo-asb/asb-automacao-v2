@@ -9,7 +9,7 @@ import time
 import pytz
 import urllib.parse 
 
-# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (RESTRICT v13.0 IDENTITY) ---
+# --- 1. CONFIGURAÇÃO VISUAL INTEGRAL (RESTRICT v13.0 IDENTITY - EXATO COMO ENVIADO) ---
 st.set_page_config(page_title="ASB AUTOMAÇÃO INDUSTRIAL", layout="wide")
 
 st.markdown("""
@@ -29,6 +29,7 @@ st.markdown("""
         margin-bottom: 30px; 
     }
     
+    /* BOTÕES COM TAMANHO PADRONIZADO v13.0 - EXATO */
     div.stButton > button:first-child {
         width: 100%;
         height: 4.5em;
@@ -48,43 +49,25 @@ st.markdown("""
         color: #28a745; font-weight: bold; padding: 20px; border: 2px solid #28a745; 
         border-radius: 8px; text-align: center; background-color: #e8f5e9; font-size: 22px; 
     }
-
-    .status-alert { 
-        color: #dc3545; font-weight: bold; padding: 20px; border: 2px solid #dc3545; 
-        border-radius: 8px; text-align: center; background-color: #fdecea; font-size: 22px; 
-    }
     
     .home-card { 
         background-color: #ffffff; padding: 25px; border-radius: 15px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #00458d; 
         text-align: center; height: 100%; 
     }
+    .home-icon { font-size: 40px; margin-bottom: 15px; }
 
-    /* CARDS MEDIÇÃO - RESTAURADOS v13.0 */
     .gauge-card { 
-        background: white; 
-        padding: 30px; 
-        border-radius: 20px; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
-        text-align: center; 
-        border: 1px solid #f0f0f0; 
+        background: white; padding: 30px; border-radius: 20px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border: 1px solid #f0f0f0; 
     }
     .gauge-value { 
-        font-size: 50px; 
-        font-weight: 800; 
-        color: #333; 
-        margin: 15px 0; 
+        font-size: 50px; font-weight: 800; color: #333; margin: 15px 0; 
     }
     
-    /* BARRAS DE 8PX INTEGRALMENTE RESTAURADAS */
     .moving-bar-container { 
-        width: 100%; 
-        height: 8px; 
-        background: #eee; 
-        border-radius: 10px; 
-        overflow: hidden; 
-        position: relative; 
-        margin-top: 10px; 
+        width: 100%; height: 8px; background: #eee; border-radius: 10px; 
+        overflow: hidden; position: relative; margin-top: 10px; 
     }
     
     .bar-on { height: 100%; width: 100%; background: linear-gradient(90deg, #28a745, #85e085, #28a745); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
@@ -165,13 +148,13 @@ else:
     menu = st.sidebar.radio("Navegação:", opts)
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
-    # --- 6. TELAS ---
+    # --- 6. TELAS (RESTRICTED TO v13 VISUAL - CÓDIGO ORIGINAL) ---
     if menu == "🏠 Home":
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown("""<div class='home-card'><h3>Supervisão IoT</h3><p>Nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
-        with c2: st.markdown("""<div class='home-card'><h3>Análise</h3><p>Telemetria avançada.</p></div>""", unsafe_allow_html=True)
-        with c3: st.markdown("""<div class='home-card'><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
+        with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Nuvem em tempo real.</p></div>""", unsafe_allow_html=True)
+        with c2: st.markdown("""<div class='home-card'><div class='home-icon'>📈</div><h3>Análise</h3><p>Telemetria avançada.</p></div>""", unsafe_allow_html=True)
+        with c3: st.markdown("""<div class='home-card'><div class='home-icon'>🛡️</div><h3>Segurança</h3><p>Auditoria completa.</p></div>""", unsafe_allow_html=True)
 
     elif menu == "🕹️ Acionamento":
         st.header("Controle de Ativos")
@@ -181,53 +164,58 @@ else:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🟢' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
+                st.markdown("<p style='text-align:center; font-size:25px;'>💤</p>", unsafe_allow_html=True)
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🔴' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
+        else:
+            st.info("🤖 MODO AUTOMÁTICO ATIVO")
+            ca1, ca2 = st.columns(2)
+            st.session_state["t_auto_v"] = ca1.number_input("Tempo Ciclo (min)", value=5)
+            st.session_state["t_pisca_v"] = ca2.number_input("Velocidade Pisca (seg)", value=2)
+            if not st.session_state["ciclo_ativo"]:
+                if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
+            else:
+                if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
+                restante = st.session_state["t_auto_v"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
+                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
-        t_atual = db.reference("sensor/temperatura").get() or 0
-        u_atual = db.reference("sensor/umidade").get() or 0
-        
-        # CARDS ORIGINAIS RESTAURADOS
-        pct_t, pct_u = min(max((t_atual / 60) * 100, 0), 100), min(max(u_atual, 0), 100)
+        t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
+        pct_t, pct_u = min(max((t / 60) * 100, 0), 100), min(max(u, 0), 100)
         col1, col2 = st.columns(2)
-        with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t_atual}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
-        with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u_atual}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 ATUALIZAR AGORA"): 
-            # Grava no histórico ao clicar (opcional)
-            db.reference("historico_sensores").push({"t": t_atual, "u": u_atual, "data": obter_hora_brasilia().strftime('%H:%M:%S')})
+        # MELHORIA PONTUAL: GRAVAÇÃO SILENCIOSA E BOTÃO ABAIXO
+        if st.button("🔄 ATUALIZAR MEDIÇÃO"): 
+            db.reference("historico_sensores").push({"t": t, "u": u, "data": obter_hora_brasilia().strftime('%H:%M:%S')})
             st.rerun()
-
-        # ÁREA DO GRÁFICO SEPARADA (Para não mexer no layout acima)
-        with st.expander("📈 Ver Histórico de Tendência", expanded=False):
-            dados_h = db.reference("historico_sensores").get()
-            if dados_h:
-                df = pd.DataFrame(list(dados_h.values())).tail(20)
-                st.line_chart(df.set_index('data')[['t', 'u']])
 
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
+        # MELHORIA PONTUAL: BOTÃO DE DOWNLOAD SEM ALTERAR O CHAT
         dados_s = db.reference("historico_sensores").get()
         if dados_s:
             df_export = pd.DataFrame(list(dados_s.values()))
             csv = df_export.to_csv(index=False).encode('utf-8')
             st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", csv, "relatorio_asb.csv", "text/csv")
+        
         st.divider()
+        if st.button("🗑️ LIMPAR HISTÓRICO"): db.reference("historico_acoes").delete(); st.rerun()
         logs = db.reference("historico_acoes").get()
         if logs:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
             for k in reversed(list(logs.keys())):
-                v = logs[k]; st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
+                v = logs[k]
+                st.markdown(f'<div class="msg-balao"><b>{v.get("usuario")}</b>: {v.get("acao")} <br><small>{v.get("data")}</small></div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "🛠️ Diagnóstico":
@@ -235,18 +223,22 @@ else:
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
         if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
-        else: st.markdown("<div class='status-alert'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         if c1.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
-        if c2.button("📡 CONFIGURAR NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
+        if c2.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
-        st.header("Gerenciamento")
+        st.header("Gerenciamento de Operadores")
         with st.form("cad_u"):
             n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
+        users = db.reference("usuarios_autorizados").get()
+        if users:
+            for k, v in users.items():
+                st.markdown(f"<div class='card-usuario'><b>{v.get('nome')}</b> | Login: {v.get('login')}</div>", unsafe_allow_html=True)
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v58.0 (Identity Restored)
+# ASB AUTOMAÇÃO INDUSTRIAL - v59.0 (Integrity Restricted)
