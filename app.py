@@ -73,20 +73,14 @@ st.markdown("""
     .bar-off { height: 100%; width: 100%; background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-inativa { height: 100%; width: 100%; background: #eee; border-radius: 10px; }
 
-    /* CORREÇÃO DEFINITIVA DE ALINHAMENTO */
-    .status-wrapper {
-        width: 100%;
-        display: block;
-        text-align: center;
-        margin: 0 auto;
-        padding: 0;
-    }
-    .status-icon {
-        font-size: 28px;
-        display: inline-block;
-        width: 100%;
-        text-align: center;
-        margin-bottom: 5px;
+    /* CENTRALIZAÇÃO FORÇADA DE ÍCONES DE STATUS */
+    .forcar-centro {
+        display: block !important;
+        text-align: center !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        font-size: 30px !important;
+        line-height: 1.5 !important;
     }
 
     @keyframes moveRight { 0% { background-position: 200% 0; } 100% { background-position: 0 0; } }
@@ -197,15 +191,15 @@ else:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                st.markdown(f"<div class='status-wrapper'><span class='status-icon'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='forcar-centro'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</div>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
-                st.markdown("<div class='status-wrapper'><span class='status-icon'>💤</span></div>", unsafe_allow_html=True)
+                st.markdown("<div class='forcar-centro'>💤</div>", unsafe_allow_html=True)
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f"<div class='status-wrapper'><span class='status-icon'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='forcar-centro'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</div>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
 
     elif menu == "🌡️ Medição":
@@ -256,4 +250,4 @@ else:
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v64.0
+# ASB AUTOMAÇÃO INDUSTRIAL - v65.0
