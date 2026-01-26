@@ -60,15 +60,31 @@ st.markdown("""
         text-align: center; height: 100%; 
     }
 
+    /* CARDS MEDIÇÃO - RESTAURADOS v13.0 */
     .gauge-card { 
-        background: white; padding: 30px; border-radius: 20px; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border: 1px solid #f0f0f0; 
+        background: white; 
+        padding: 30px; 
+        border-radius: 20px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        text-align: center; 
+        border: 1px solid #f0f0f0; 
     }
-    .gauge-value { font-size: 50px; font-weight: 800; color: #333; margin: 15px 0; }
+    .gauge-value { 
+        font-size: 50px; 
+        font-weight: 800; 
+        color: #333; 
+        margin: 15px 0; 
+    }
     
+    /* BARRAS DE 8PX INTEGRALMENTE RESTAURADAS */
     .moving-bar-container { 
-        width: 100%; height: 8px; background: #eee; border-radius: 10px; 
-        overflow: hidden; position: relative; margin-top: 10px; 
+        width: 100%; 
+        height: 8px; 
+        background: #eee; 
+        border-radius: 10px; 
+        overflow: hidden; 
+        position: relative; 
+        margin-top: 10px; 
     }
     
     .bar-on { height: 100%; width: 100%; background: linear-gradient(90deg, #28a745, #85e085, #28a745); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
@@ -84,7 +100,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE NÚCLEO ---
+# --- 2. FUNÇÕES DE NÚCLEO (PRESERVADAS) ---
 def obter_hora_brasilia():
     return datetime.now(pytz.timezone('America/Sao_Paulo'))
 
@@ -110,7 +126,6 @@ def registrar_evento(acao, manual=False):
     agora_f = obter_hora_brasilia().strftime('%d/%m/%Y %H:%M:%S')
     try:
         db.reference("historico_acoes").push({"data": agora_f, "usuario": usuario, "acao": acao})
-        # Lógica de e-mail preservada...
     except: pass
 
 # --- 3. ESTADOS E LOGIN (PRESERVADOS) ---
@@ -143,11 +158,6 @@ if not st.session_state["logado"]:
 else:
     conectar_firebase()
     
-    # --- 4. GRAVAÇÃO DE LOG DE TEMPERATURA (MELHORIA PONTUAL) ---
-    # Salva no banco apenas se o valor mudar ou a cada intervalo para gerar gráfico
-    t_atual = db.reference("sensor/temperatura").get() or 0
-    u_atual = db.reference("sensor/umidade").get() or 0
-    
     # --- 5. MENU LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
@@ -171,48 +181,47 @@ else:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center;'>{'🟢' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🟢' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center;'>{'🔴' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'🔴' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
 
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
+        t_atual = db.reference("sensor/temperatura").get() or 0
+        u_atual = db.reference("sensor/umidade").get() or 0
+        
+        # CARDS ORIGINAIS RESTAURADOS
+        pct_t, pct_u = min(max((t_atual / 60) * 100, 0), 100), min(max(u_atual, 0), 100)
         col1, col2 = st.columns(2)
-        with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t_atual}</div></div>''', unsafe_allow_html=True)
-        with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u_atual}</div></div>''', unsafe_allow_html=True)
+        with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t_atual}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
+        with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u_atual}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         
-        # GRAVAÇÃO AUTOMÁTICA PARA HISTÓRICO (Melhoria)
-        if 'last_log' not in st.session_state or time.time() - st.session_state['last_log'] > 60:
-            db.reference("historico_sensores").push({
-                "t": t_atual, "u": u_atual, "data": obter_hora_brasilia().strftime('%H:%M:%S')
-            })
-            st.session_state['last_log'] = time.time()
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 ATUALIZAR AGORA"): 
+            # Grava no histórico ao clicar (opcional)
+            db.reference("historico_sensores").push({"t": t_atual, "u": u_atual, "data": obter_hora_brasilia().strftime('%H:%M:%S')})
+            st.rerun()
 
-        # EXIBIÇÃO DO GRÁFICO (Melhoria)
-        st.subheader("📈 Tendência (Últimas Leituras)")
-        dados_h = db.reference("historico_sensores").get()
-        if dados_h:
-            df = pd.DataFrame(list(dados_h.values())).tail(20)
-            st.line_chart(df.set_index('data')[['t', 'u']])
-        
-        if st.button("🔄 ATUALIZAR AGORA"): st.rerun()
+        # ÁREA DO GRÁFICO SEPARADA (Para não mexer no layout acima)
+        with st.expander("📈 Ver Histórico de Tendência", expanded=False):
+            dados_h = db.reference("historico_sensores").get()
+            if dados_h:
+                df = pd.DataFrame(list(dados_h.values())).tail(20)
+                st.line_chart(df.set_index('data')[['t', 'u']])
 
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
-        
-        # EXPORTAÇÃO CSV (Melhoria)
         dados_s = db.reference("historico_sensores").get()
         if dados_s:
             df_export = pd.DataFrame(list(dados_s.values()))
             csv = df_export.to_csv(index=False).encode('utf-8')
             st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", csv, "relatorio_asb.csv", "text/csv")
-        
         st.divider()
         logs = db.reference("historico_acoes").get()
         if logs:
@@ -234,11 +243,10 @@ else:
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
         st.header("Gerenciamento")
-        # Lógica de cadastro preservada v13.0...
         with st.form("cad_u"):
             n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v57.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v58.0 (Identity Restored)
