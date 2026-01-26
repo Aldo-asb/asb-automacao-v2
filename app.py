@@ -73,6 +73,16 @@ st.markdown("""
     .bar-off { height: 100%; width: 100%; background: linear-gradient(90deg, #dc3545, #ff8585, #dc3545); background-size: 200% 100%; animation: moveRight 2s linear infinite; }
     .bar-inativa { height: 100%; width: 100%; background: #eee; border-radius: 10px; }
 
+    /* ESTILO PARA CENTRALIZAÇÃO TOTAL DOS STATUS */
+    .status-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 40px;
+        font-size: 25px;
+    }
+
     @keyframes moveRight { 0% { background-position: 200% 0; } 100% { background-position: 0 0; } }
     .blink { animation: blinker 1.2s linear infinite; display: inline-block; }
     @keyframes blinker { 50% { opacity: 0; } }
@@ -89,8 +99,8 @@ def obter_hora_brasilia():
 def enviar_email(assunto, mensagem):
     if not st.session_state.get("email_ativo", True): return
     try:
-        remetente = st.secrets.get("email_user", "seu_email@gmail.com")
-        senha = st.secrets.get("email_password", "sua_senha")
+        remetente = st.secrets.get("email_user", "")
+        senha = st.secrets.get("email_password", "")
         msg = MIMEText(mensagem)
         msg['Subject'], msg['From'], msg['To'] = assunto, remetente, remetente
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
@@ -159,10 +169,9 @@ else:
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
     
-    # INTERAÇÃO WHATSAPP (RESTAURADO)
     st.sidebar.divider()
-    texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Gostaria de reportar uma ocorrência no sistema ASB.")
-    st.markdown(f"<div style='text-align:center; font-size:25px; width:100%;'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</div>", unsafe_allow_html=True)
+    texto_wa = urllib.parse.quote(f"Olá, sou {st.session_state['user_nome']}. Suporte ASB.")
+    st.sidebar.markdown(f'[💬 Suporte WhatsApp](https://wa.me/5500000000000?text={texto_wa})')
     
     if st.sidebar.button("Encerrar Sessão"): st.session_state["logado"] = False; st.rerun()
 
@@ -182,27 +191,16 @@ else:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<div class='status-container'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</div>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
-                st.markdown("<p style='text-align:center; font-size:25px;'>💤</p>", unsafe_allow_html=True)
+                st.markdown("<div class='status-container'>💤</div>", unsafe_allow_html=True)
                 st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
+                st.markdown(f"<div class='status-container'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</div>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
-        else:
-            st.info("🤖 MODO AUTOMÁTICO ATIVO")
-            ca1, ca2 = st.columns(2)
-            st.session_state["t_auto_v"] = ca1.number_input("Tempo Ciclo (min)", value=5)
-            st.session_state["t_pisca_v"] = ca2.number_input("Velocidade Pisca (seg)", value=2)
-            if not st.session_state["ciclo_ativo"]:
-                if st.button("▶️ INICIAR"): st.session_state["ciclo_ativo"], st.session_state["hora_inicio_ciclo"] = True, time.time(); st.rerun()
-            else:
-                if st.button("⏹️ PARAR"): st.session_state["ciclo_ativo"] = False; db.reference("controle/led").set("OFF"); st.rerun()
-                restante = st.session_state["t_auto_v"] - ((time.time() - st.session_state["hora_inicio_ciclo"]) / 60)
-                st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
         st.header("Telemetria Industrial")
@@ -211,7 +209,6 @@ else:
         col1, col2 = st.columns(2)
         with col1: st.markdown(f'''<div class="gauge-card">Temperatura (°C)<div class="gauge-value">{t}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_t}%; background:linear-gradient(90deg, #3a7bd5, #ee0979); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
         with col2: st.markdown(f'''<div class="gauge-card">Umidade (%)<div class="gauge-value">{u}</div><div class="moving-bar-container"><div style="height:100%; width:{pct_u}%; background:linear-gradient(90deg, #00d2ff, #3a7bd5); border-radius:10px;"></div></div></div>''', unsafe_allow_html=True)
-        
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 ATUALIZAR AGORA"): 
             db.reference("historico_sensores").push({"t": t, "u": u, "data": obter_hora_brasilia().strftime('%H:%M:%S')})
@@ -223,7 +220,7 @@ else:
         if dados_s:
             df_export = pd.DataFrame(list(dados_s.values()))
             csv = df_export.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", csv, "relatorio_asb.csv", "text/csv")
+            st.download_button("📥 BAIXAR RELATÓRIO (CSV)", csv, "relatorio_asb.csv", "text/csv")
         st.divider()
         logs = db.reference("historico_acoes").get()
         if logs:
@@ -235,12 +232,10 @@ else:
     elif menu == "🛠️ Diagnóstico":
         st.header("Status de Rede")
         st.session_state["email_ativo"] = st.checkbox("Habilitar Alertas por E-mail", value=st.session_state["email_ativo"])
-        
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
         if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
         else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
-        
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
@@ -248,11 +243,11 @@ else:
             if st.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
-        st.header("Gerenciamento de Operadores")
+        st.header("Gerenciamento")
         with st.form("cad_u"):
             n, l, s = st.text_input("Nome"), st.text_input("Login"), st.text_input("Senha", type="password")
             if st.form_submit_button("CADASTRAR"):
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v62.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v63.0
