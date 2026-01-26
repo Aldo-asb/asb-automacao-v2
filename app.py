@@ -65,7 +65,7 @@ st.markdown("""
     }
     
     .moving-bar-container { 
-        width: 100%; height: 8px; background: #eee; border-radius: 10px; 
+        width: 100%; height: 10px; background: #eee; border-radius: 10px; 
         overflow: hidden; position: relative; margin-top: 10px; 
     }
     
@@ -89,8 +89,8 @@ def obter_hora_brasilia():
 def enviar_email(assunto, mensagem):
     if not st.session_state.get("email_ativo", True): return
     try:
-        remetente = st.secrets.get("email_user", "seu_email@gmail.com")
-        senha = st.secrets.get("email_password", "sua_senha")
+        remetente = st.secrets.get("email_user", "")
+        senha = st.secrets.get("email_password", "")
         msg = MIMEText(mensagem)
         msg['Subject'], msg['From'], msg['To'] = assunto, remetente, remetente
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
@@ -141,6 +141,10 @@ if not st.session_state["logado"]:
             if u == "admin" and p == "asb2026":
                 st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "Admin Master", True
                 st.rerun()
+            # DIRETRIZ 2: LOGIN JM 123
+            elif u == "JM" and p == "123":
+                st.session_state["logado"], st.session_state["user_nome"], st.session_state["is_admin"] = True, "JM", False
+                st.rerun()
             else:
                 conectar_firebase()
                 usrs = db.reference("usuarios_autorizados").get()
@@ -155,6 +159,10 @@ else:
     
     # --- 5. MENU LATERAL ---
     st.sidebar.title("MENU PRINCIPAL")
+    
+    # DIRETRIZ 1 e 7: BOTÃO DE E-MAIL NO MENU PRINCIPAL (LATERAL)
+    st.session_state["email_ativo"] = st.sidebar.toggle("📧 Habilitar Alerta E-mail", value=st.session_state["email_ativo"])
+    
     opts = ["🏠 Home", "🕹️ Acionamento", "🌡️ Medição", "📊 Relatórios", "🛠️ Diagnóstico"]
     if st.session_state["is_admin"]: opts.append("👥 Gestão de Usuários")
     menu = st.sidebar.radio("Navegação:", opts)
@@ -167,6 +175,7 @@ else:
 
     # --- 6. TELAS ---
     if menu == "🏠 Home":
+        # DIRETRIZ 6: HOME SEM ALTERAÇÃO
         st.markdown("<div class='titulo-asb'>ASB AUTOMAÇÃO INDUSTRIAL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1: st.markdown("""<div class='home-card'><div class='home-icon'>🚀</div><h3>Supervisão IoT</h3><p>Monitoramento contínuo de ativos industriais via nuvem com baixa latência.</p></div>""", unsafe_allow_html=True)
@@ -181,15 +190,13 @@ else:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("LIGAR"): db.reference("controle/led").set("ON"); registrar_evento("LIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🟢</span>' if status_real == 'ON' else '⚪'}</p>", unsafe_allow_html=True)
+                # DIRETRIZ 4: REMOVIDA A BOLINHA, MANTIDA SOMENTE A FAIXA
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "ON" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c2:
                 if st.button("REPOUSO"): db.reference("controle/led").set("REPOUSO"); registrar_evento("REPOUSO"); st.rerun()
-                st.markdown("<p style='text-align:center; font-size:25px;'>💤</p>", unsafe_allow_html=True)
-                st.markdown('<div class="moving-bar-container"><div class="bar-inativa"></div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="moving-bar-container"><div class="{"bar-on" if status_real == "REPOUSO" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
             with c3:
                 if st.button("DESLIGAR"): db.reference("controle/led").set("OFF"); registrar_evento("DESLIGOU"); st.rerun()
-                st.markdown(f"<p style='text-align:center; font-size:25px;'>{'<span class=\"blink\">🔴</span>' if status_real == 'OFF' else '⚪'}</p>", unsafe_allow_html=True)
                 st.markdown(f'<div class="moving-bar-container"><div class="{"bar-off" if status_real == "OFF" else "bar-inativa"}"></div></div>', unsafe_allow_html=True)
         else:
             st.info("🤖 MODO AUTOMÁTICO ATIVO")
@@ -204,6 +211,7 @@ else:
                 st.success(f"⚡ Operando: {restante:.2f} min"); time.sleep(1); st.rerun()
 
     elif menu == "🌡️ Medição":
+        # DIRETRIZ 5: MEDIÇÃO SEM ALTERAÇÃO
         st.header("Telemetria Industrial")
         t, u = db.reference("sensor/temperatura").get() or 0, db.reference("sensor/umidade").get() or 0
         pct_t, pct_u = min(max((t / 60) * 100, 0), 100), min(max(u, 0), 100)
@@ -218,19 +226,16 @@ else:
 
     elif menu == "📊 Relatórios":
         st.header("Histórico de Atividades")
-        
-        # BOTÃO PARA LIMPAR HISTÓRICO (SOMENTE ADMIN)
         if st.session_state["is_admin"]:
             if st.button("🗑️ LIMPAR HISTÓRICO DE RELATÓRIOS"):
                 db.reference("historico_acoes").delete()
                 db.reference("historico_sensores").delete()
-                st.success("Histórico excluído com sucesso!"); time.sleep(1); st.rerun()
+                st.success("Histórico excluído!"); time.sleep(1); st.rerun()
 
         dados_s = db.reference("historico_sensores").get()
         if dados_s:
             df_export = pd.DataFrame(list(dados_s.values()))
-            csv = df_export.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", csv, "relatorio_asb.csv", "text/csv")
+            st.download_button("📥 BAIXAR RELATÓRIO DE SENSORES (CSV)", df_export.to_csv(index=False).encode('utf-8'), "relatorio_asb.csv", "text/csv")
         st.divider()
         logs = db.reference("historico_acoes").get()
         if logs:
@@ -241,17 +246,19 @@ else:
 
     elif menu == "🛠️ Diagnóstico":
         st.header("Status de Rede")
-        st.session_state["email_ativo"] = st.checkbox("Habilitar Alertas por E-mail", value=st.session_state["email_ativo"])
+        # DIRETRIZ 7: Botão de email removido daqui (movido para sidebar)
         
         ultimo_p = db.reference("sensor/ultimo_pulso").get()
         online = (time.time()*1000 - ultimo_p) < 45000 if ultimo_p else False
         if online: st.markdown("<div class='status-ok'>✅ SISTEMA ONLINE</div>", unsafe_allow_html=True)
         else: st.markdown("<div class='status-alert' style='color:#dc3545; border:2px solid #dc3545; padding:20px; text-align:center; border-radius:8px; background-color:#fdecea; font-weight:bold; font-size:22px;'>⚠️ SISTEMA OFFLINE</div>", unsafe_allow_html=True)
         
-        c1, c2 = st.columns(2)
-        with c1:
+        # DIRETRIZ 3: CORREÇÃO DO ALINHAMENTO DOS BOTÕES
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_diag1, col_diag2 = st.columns(2)
+        with col_diag1:
             if st.button("🔁 REBOOT ESP32"): db.reference("controle/restart").set(True); st.rerun()
-        with c2:
+        with col_diag2:
             if st.button("📡 NOVO WI-FI"): db.reference("controle/restart").set(True); st.rerun()
 
     elif menu == "👥 Gestão de Usuários" and st.session_state["is_admin"]:
@@ -262,4 +269,4 @@ else:
                 db.reference("usuarios_autorizados").push({"nome": n, "login": l, "senha": s, "data": obter_hora_brasilia().strftime('%d/%m/%Y')})
                 st.rerun()
 
-# ASB AUTOMAÇÃO INDUSTRIAL - v75.0 (Integrity Restricted)
+# ASB AUTOMAÇÃO INDUSTRIAL - v76.0 (Integrity Restricted)
